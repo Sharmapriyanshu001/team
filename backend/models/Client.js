@@ -9,6 +9,20 @@ const clientSchema = new mongoose.Schema(
     password: { type: String, default: "" },
     portalAccess: { type: Boolean, default: true },
     lastLogin: { type: Date },
+
+    /**
+     * Bumped whenever every existing session for this account should stop
+     * working: a sign-out, a password change, an admin resetting the password.
+     *
+     * A JWT cannot be recalled — once signed it is valid until it expires, and
+     * these last seven days. So the token carries the number it was minted
+     * with and the auth middleware compares it against this one; a token from
+     * before the bump no longer matches and is refused.
+     *
+     * Tokens issued before this field existed carry no number at all, and are
+     * read as 0 so that adding this did not sign everybody out mid-week.
+     */
+    tokenVersion: { type: Number, default: 0 },
     phone: { type: String, trim: true, default: "" },
     address: { type: String, trim: true, default: "" },
     gstNumber: { type: String, trim: true, default: "" },

@@ -6,6 +6,14 @@ import mongoose from "mongoose";
 
 import { initRealtime } from "./utils/realtime.js";
 
+import {
+  apiLimiter,
+  corsOptions,
+  requestLogger,
+  securityHeaders,
+  trustProxy,
+} from "./middleware/security.js";
+
 import { servePreview, servePreviewSlug } from "./controllers/previewController.js";
 
 import contactRoutes from "./routes/contactRoutes.js";
@@ -44,7 +52,16 @@ if (secretProblem) {
 
 const app = express();
 
-app.use(cors());
+/**
+ * Only counted once, but it decides what req.ip means — so it goes before any
+ * middleware that reads an address, which is both the rate limiters and the
+ * request log.
+ */
+app.set("trust proxy", trustProxy);
+
+app.use(securityHeaders);
+app.use(requestLogger);
+app.use(cors(corsOptions));
 
 
 /**
@@ -67,6 +84,10 @@ app.get("/", (req, res) => {
 // every account (client, team leader, employee) is created and managed by an
 // admin from the admin panel.
 
+// Everything under /api is rate limited. The per-route login limiters are
+// stricter still and are applied where those routes are declared.
+app.use("/api", apiLimiter);
+
 app.use("/api/contact", contactRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/leader", leaderRoutes);
@@ -80,6 +101,13 @@ app.use("/api/client", clientRoutes);
  */
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
+
+  // A blocked origin arrives here as a plain Error from the cors callback.
+  // Left to the handler below it would be reported as a server fault, which
+  // sends whoever hits it looking in the wrong place entirely.
+  if (/^Origin .* is not allowed$/.test(err?.message || "")) {
+    return res.status(403).json({ message: "This origin is not allowed to call the API" });
+  }
 
   if (err?.type === "entity.too.large") {
     return res.status(413).json({ message: "That request is too large" });

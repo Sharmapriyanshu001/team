@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Save, KeyRound, LogOut } from "lucide-react";
 
 import adminApi from "../adminApi";
+import { saveToken } from "../../shared/createApi";
 import useSignOut from "../../shared/useSignOut";
 import {
   Alert,
@@ -79,12 +80,15 @@ export default function Profile() {
 
     setChanging(true);
     try {
-      await adminApi.put("/admin/profile/password", {
+      const { data } = await adminApi.put("/admin/profile/password", {
         currentPassword: passwords.currentPassword,
         newPassword: passwords.newPassword,
       });
+      // The change signed every other device out. This one stays signed in
+      // only because the server hands back a token minted after the bump.
+      saveToken("adminToken", data?.token);
       setPasswords({ currentPassword: "", newPassword: "", confirm: "" });
-      setPwSuccess("Password changed successfully");
+      setPwSuccess("Password changed. Any other device is now signed out.");
     } catch (err) {
       setPwError(err.response?.data?.message || "Could not change the password");
     } finally {

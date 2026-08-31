@@ -2,10 +2,44 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="https://cdn-uicons.flaticon.com/uicons-regular-rounded/css/uicons-regular-rounded.css" />
-    <title>frontend</title>
+
+    <title>Office Panel</title>
+    <meta
+      name="description"
+      content="Projects, tasks, team and client management for the studio — admin, team leader, employee and client panels."
+    />
+
+    <!--
+      A private, sign-in-only panel. Telling crawlers to stay out is not a
+      security measure — the login does that — it just keeps internal URLs out
+      of search results where they help nobody.
+    -->
+    <meta name="robots" content="noindex, nofollow" />
+
+    <!-- Colours the Android status bar and the desktop title bar -->
+    <meta name="theme-color" content="#2563EB" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Panel" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <!-- How the link renders when somebody pastes it into a chat -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Office Panel" />
+    <meta
+      property="og:description"
+      content="Projects, tasks, team and client management for the studio."
+    />
+    <meta property="og:image" content="/icon-512.png" />
+    <meta name="twitter:card" content="summary" />
+
+    <link
+      rel="stylesheet"
+      href="https://cdn-uicons.flaticon.com/uicons-regular-rounded/css/uicons-regular-rounded.css"
+    />
   </head>
   <body>
     <div id="root"></div>

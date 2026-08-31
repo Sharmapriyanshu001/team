@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Save, KeyRound, LogOut, MessageSquare } from "lucide-react";
 
 import employeeApi from "../employeeApi";
+import { saveToken } from "../../shared/createApi";
 import { useEmployee } from "../employeeContext";
 import { initialsOf } from "../../shared/format";
 import useSignOut from "../../shared/useSignOut";
@@ -66,12 +67,15 @@ export default function Profile() {
 
     setChanging(true);
     try {
-      await employeeApi.put("/employee/profile/password", {
+      const { data } = await employeeApi.put("/employee/profile/password", {
         currentPassword: passwords.currentPassword,
         newPassword: passwords.newPassword,
       });
+      // The change signed every other device out. This one stays signed in
+      // only because the server hands back a token minted after the bump.
+      saveToken("employeeToken", data?.token);
       setPasswords({ currentPassword: "", newPassword: "", confirm: "" });
-      setPwSuccess("Password changed successfully");
+      setPwSuccess("Password changed. Any other device is now signed out.");
     } catch (err) {
       setPwError(err.response?.data?.message || "Could not change the password");
     } finally {

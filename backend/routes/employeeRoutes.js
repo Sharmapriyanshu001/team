@@ -1,8 +1,10 @@
 import express from "express";
 
 import employeeAuth from "../middleware/employeeAuth.js";
+import { loginBurstLimiter, loginLimiter } from "../middleware/security.js";
 import {
   employeeLogin,
+  employeeLogout,
   employeeProfile,
   updateProfile,
   changePassword,
@@ -90,7 +92,12 @@ import {
 
 const router = express.Router();
 
-router.post("/login", employeeLogin);
+// Guessing a password is the one attack this endpoint cannot refuse on
+// its own merits, so it is throttled rather than argued with.
+router.post("/login", loginBurstLimiter, loginLimiter, employeeLogin);
+// Ending a session is something only a live session can ask for, so this
+// sits behind the same door as everything else rather than beside the login.
+router.post("/logout", employeeAuth, employeeLogout);
 
 // Everything below this line needs a valid employee token
 router.use(employeeAuth);

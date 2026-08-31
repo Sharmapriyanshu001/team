@@ -1,15 +1,10 @@
-import jwt from "jsonwebtoken";
+import { signStaffToken } from "../utils/token.js";
 import User, { ADMIN_ROLES } from "../models/User.js";
 import ActivityLog from "../models/ActivityLog.js";
 import { comparePassword } from "../utils/password.js";
 import { permissionsFor, SUPER_ADMIN } from "../middleware/permissions.js";
 
-const createToken = (user) =>
-  jwt.sign(
-    { id: user._id, email: user.email, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+const createToken = signStaffToken;
 
 const safeAdmin = (user) => ({
   id: user._id,
@@ -87,4 +82,30 @@ export const adminProfile = async (req, res) => {
       problem: permissions.broken || "",
     },
   });
+};
+
+/**
+ * POST /api/admin/logout
+ *
+ * Signing out used to be entirely a browser-side act: the panel dropped the
+ * token from localStorage and navigated away. The token itself stayed valid
+ * for the rest of its seven days, so anything that had a copy of it — a shared
+ * machine, a stale tab, somebody who had lifted it — kept full access to the
+ * account long after the person believed they had left.
+ *
+ * Bumping the version is what actually ends it. Every token minted before this
+ * moment now fails the check in the auth middleware and in the socket
+ * handshake, on every device at once.
+ *
+ * Answers 200 even if the write fails: the caller has already decided to leave
+ * and there is nothing useful it could do with the error. The failure is
+ * logged, which is where it belongs.
+ */
+export const adminLogout = async (req, res) => {
+  try {
+    await User.updateOne({ _id: req.admin._id }, { $inc: { tokenVersion: 1 } });
+  } catch (err) {
+    console.error("adminLogout error:", err.message);
+  }
+  return res.status(200).json({ message: "Signed out" });
 };

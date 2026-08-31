@@ -30,6 +30,17 @@ const clientAuth = async (req, res, next) => {
         .json({ message: "Portal access is turned off for this account", code: "AUTH" });
     }
 
+    /**
+     * The token was minted for a session that has since been ended — a
+     * sign-out, a password change, or an admin resetting it. See
+     * User.tokenVersion / Client.tokenVersion.
+     */
+    if ((decoded.tv ?? 0) !== (client.tokenVersion ?? 0)) {
+      return res
+        .status(401)
+        .json({ message: "This session has ended. Please sign in again.", code: "AUTH" });
+    }
+
     req.client = client;
     next();
   } catch (err) {

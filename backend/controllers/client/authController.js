@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+import { signClientToken } from "../../utils/token.js";
 import Client from "../../models/Client.js";
 import Setting from "../../models/Setting.js";
 import ActivityLog from "../../models/ActivityLog.js";
@@ -6,10 +6,7 @@ import { hashPassword, comparePassword } from "../../utils/password.js";
 
 // Client tokens deliberately carry no `role` — that is how clientAuth tells
 // them apart from staff tokens signed with the same secret.
-const createToken = (client) =>
-  jwt.sign({ id: client._id, email: client.email }, process.env.JWT_SECRET, {
-    expiresIn: "7d",
-  });
+const createToken = signClientToken;
 
 const safeClient = (client) => ({
   id: client._id,
@@ -125,11 +122,46 @@ export const changePassword = async (req, res) => {
     }
 
     client.password = hashPassword(newPassword);
+    /**
+     * A new password should mean every other device is signed out — that is
+     * the whole point of changing one you think somebody else knows. Bumping
+     * the version does that; minting a fresh token straight after is what
+     * keeps the device doing the changing from being signed out too.
+     */
+    client.tokenVersion = (client.tokenVersion || 0) + 1;
     await client.save();
 
-    return res.status(200).json({ message: "Password changed successfully" });
+    return res
+      .status(200)
+      .json({ message: "Password changed successfully", token: createToken(client) });
   } catch (err) {
     console.error("client changePassword error:", err);
     return res.status(500).json({ message: "Server error" });
   }
+};
+
+/**
+ * POST /api/client/logout
+ *
+ * Signing out used to be entirely a browser-side act: the panel dropped the
+ * token from localStorage and navigated away. The token itself stayed valid
+ * for the rest of its seven days, so anything that had a copy of it — a shared
+ * machine, a stale tab, somebody who had lifted it — kept full access to the
+ * account long after the person believed they had left.
+ *
+ * Bumping the version is what actually ends it. Every token minted before this
+ * moment now fails the check in the auth middleware and in the socket
+ * handshake, on every device at once.
+ *
+ * Answers 200 even if the write fails: the caller has already decided to leave
+ * and there is nothing useful it could do with the error. The failure is
+ * logged, which is where it belongs.
+ */
+export const clientLogout = async (req, res) => {
+  try {
+    await Client.updateOne({ _id: req.client._id }, { $inc: { tokenVersion: 1 } });
+  } catch (err) {
+    console.error("clientLogout error:", err.message);
+  }
+  return res.status(200).json({ message: "Signed out" });
 };

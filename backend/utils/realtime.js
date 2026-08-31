@@ -6,6 +6,7 @@ import User from "../models/User.js";
 import Client from "../models/Client.js";
 import Project from "../models/Project.js";
 import Setting from "../models/Setting.js";
+import { allowedOrigins } from "../middleware/security.js";
 
 /**
  * Live chat over Socket.IO.
@@ -40,17 +41,21 @@ const chatFlags = async () => {
 const identify = async (token) => {
   const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-  const user = await User.findById(decoded.id).select("name role status reportsTo");
+  const user = await User.findById(decoded.id).select("name role status reportsTo tokenVersion");
   if (user) {
     if (user.status !== "active") throw new Error("Account is inactive");
+    // Same check the REST middleware makes: a socket must not outlive the
+    // session whose token opened it.
+    if ((decoded.tv ?? 0) !== (user.tokenVersion ?? 0)) throw new Error("Session has ended");
     return { kind: user.role, id: String(user._id), name: user.name };
   }
 
-  const client = await Client.findById(decoded.id).select("name status portalAccess");
+  const client = await Client.findById(decoded.id).select("name status portalAccess tokenVersion");
   if (client) {
     if (!client.portalAccess || client.status === "inactive") {
       throw new Error("Portal access is turned off");
     }
+    if ((decoded.tv ?? 0) !== (client.tokenVersion ?? 0)) throw new Error("Session has ended");
     return { kind: "client", id: String(client._id), name: client.name };
   }
 
@@ -120,8 +125,14 @@ const canJoin = async (who, scope, roomId) => {
 /* ----------------------------------------------------------------- setup */
 
 export const initRealtime = (httpServer) => {
+  /**
+   * The same origin list the REST API uses. `origin: true` reflected whatever
+   * asked, which meant a page on any site could open a socket with a token it
+   * had got hold of and sit in the chat rooms that token can reach — the one
+   * thing a socket does that a stolen token cannot otherwise do quietly.
+   */
   io = new Server(httpServer, {
-    cors: { origin: true, credentials: true },
+    cors: { origin: allowedOrigins, credentials: true },
   });
 
   io.use(async (socket, next) => {

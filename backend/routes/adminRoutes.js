@@ -2,6 +2,7 @@ import fs from "fs";
 import express from "express";
 
 import adminAuth from "../middleware/adminAuth.js";
+import { loginBurstLimiter, loginLimiter } from "../middleware/security.js";
 import { guard, requireSuperAdmin } from "../middleware/permissions.js";
 import {
   listAdministrators,
@@ -21,7 +22,7 @@ import FileDoc from "../models/FileDoc.js";
 import ActivityLog from "../models/ActivityLog.js";
 import Role, { PERMISSION_MODULES, PERMISSION_ACTIONS } from "../models/Role.js";
 
-import { adminLogin, adminProfile } from "../controllers/adminController.js";
+import { adminLogin, adminLogout, adminProfile } from "../controllers/adminController.js";
 import {
   listNotifications,
   markNotificationRead,
@@ -129,7 +130,12 @@ const router = express.Router();
 
 /* ------------------------------------------------------------------ auth */
 
-router.post("/login", adminLogin);
+// Guessing a password is the one attack this endpoint cannot refuse on
+// its own merits, so it is throttled rather than argued with.
+router.post("/login", loginBurstLimiter, loginLimiter, adminLogin);
+// Ending a session is something only a live session can ask for, so this
+// sits behind the same door as everything else rather than beside the login.
+router.post("/logout", adminAuth, adminLogout);
 
 // Everything below this line needs a valid admin token
 router.use(adminAuth);
@@ -249,7 +255,13 @@ const staffCrudOptions = (role) => {
       const { data: withPapers, orphaned } = applyStaffPaperwork(payload, req, existing);
       const data = staffBeforeSave(withPapers);
 
-      if (password) data.password = hashPassword(password);
+      if (password) {
+        data.password = hashPassword(password);
+      // A reset is usually done because the old password should stop working
+      // — the person was locked out, or it leaked. Leaving their live tokens
+      // alone would make the reset cosmetic for another seven days.
+      data.tokenVersion = (existing?.tokenVersion || 0) + 1;
+      }
       data.role = role;
 
       // Documents this save replaced. Removed only once the record itself has
@@ -340,8 +352,13 @@ const clients = buildCrud(Client, {
     const data = { ...payload };
     const password = resolveLoginPassword(payload, existing, "client");
 
-    if (password) data.password = hashPassword(password);
-    else delete data.password;
+    if (password) {
+      data.password = hashPassword(password);
+      // A reset is usually done because the old password should stop working
+      // — the person was locked out, or it leaked. Leaving their live tokens
+      // alone would make the reset cosmetic for another seven days.
+      data.tokenVersion = (existing?.tokenVersion || 0) + 1;
+    } else delete data.password;
 
     return data;
   },

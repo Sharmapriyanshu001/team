@@ -1,6 +1,7 @@
 import Setting from "../models/Setting.js";
 import User from "../models/User.js";
 import { hashPassword, comparePassword } from "../utils/password.js";
+import { signStaffToken as createToken } from "../utils/token.js";
 import { logActivity } from "../utils/activity.js";
 import { emitChatPermissions } from "../utils/realtime.js";
 
@@ -110,6 +111,13 @@ export const changePassword = async (req, res) => {
     }
 
     user.password = hashPassword(newPassword);
+    /**
+     * A new password should mean every other device is signed out — that is
+     * the whole point of changing one you think somebody else knows. Bumping
+     * the version does that; minting a fresh token straight after is what
+     * keeps the device doing the changing from being signed out too.
+     */
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
 
     logActivity(req, {
@@ -119,7 +127,9 @@ export const changePassword = async (req, res) => {
       message: "Password changed",
     });
 
-    return res.status(200).json({ message: "Password changed successfully" });
+    return res
+      .status(200)
+      .json({ message: "Password changed successfully", token: createToken(user) });
   } catch (err) {
     console.error("changePassword error:", err);
     return res.status(500).json({ message: "Server error" });
