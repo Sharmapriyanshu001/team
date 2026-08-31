@@ -44,6 +44,24 @@ import {
   playOverview,
 } from "../controllers/playConsoleController.js";
 import {
+  projects as seoProjects,
+  projectDetail as seoProjectDetail,
+  listKeywords,
+  keywordHistory,
+  addKeywords,
+  recordRank,
+  updateKeyword,
+  removeKeyword,
+  audits,
+  updateAuditIssue,
+  backlinks,
+  checkBacklinks,
+  socialAccounts,
+  recordFollowers,
+  socialPosts,
+  monthlyReport,
+} from "../controllers/seoController.js";
+import {
   teamLeaderPerformance,
   employeePerformance,
 } from "../controllers/performanceController.js";
@@ -190,6 +208,7 @@ router.use("/workspace", guard("code_projects"));
 router.use("/code-share", guard("code"));
 router.use("/code", guard("code"));
 router.use("/play", guard("play_console"));
+router.use("/seo", guard("seo"));
 router.use("/reports", guard("reports"));
 router.use("/activity-logs", guard("activity_logs"));
 router.use("/roles", guard("roles"));
@@ -912,3 +931,53 @@ router.post("/play/alerts", alerts.create);
 router.get("/play/alerts/:id", alerts.getOne);
 router.put("/play/alerts/:id", alerts.update);
 router.delete("/play/alerts/:id", alerts.remove);
+
+/* --------------------------------------------------------------- seo / smo */
+
+/**
+ * One module again, for the same reason /play is: rankings, audits, backlinks
+ * and the post calendar are one retainer done by one group. A role that could
+ * see keywords but not the audit they came from would be a role nobody wants.
+ */
+
+router.get("/seo/projects", seoProjects.list);
+router.post("/seo/projects", seoProjects.create);
+// Ahead of "/:id" so neither word is ever read as an id
+router.get("/seo/projects/:id/detail", seoProjectDetail);
+router.get("/seo/projects/:id/report", monthlyReport);
+router.get("/seo/projects/:id/keywords", listKeywords);
+router.post("/seo/projects/:id/keywords", addKeywords);
+router.get("/seo/projects/:id/keywords/:keywordId", keywordHistory);
+router.put("/seo/projects/:id/keywords/:keywordId", updateKeyword);
+router.post("/seo/projects/:id/keywords/:keywordId/rank", recordRank);
+router.delete("/seo/projects/:id/keywords/:keywordId", removeKeyword);
+router.get("/seo/projects/:id", seoProjects.getOne);
+router.put("/seo/projects/:id", seoProjects.update);
+router.delete("/seo/projects/:id", seoProjects.remove);
+
+router.get("/seo/audits", audits.list);
+router.post("/seo/audits", audits.create);
+router.get("/seo/audits/:id", audits.getOne);
+router.put("/seo/audits/:id", audits.update);
+router.put("/seo/audits/:id/issues/:issueId", updateAuditIssue);
+router.delete("/seo/audits/:id", audits.remove);
+
+router.get("/seo/backlinks", backlinks.list);
+router.post("/seo/backlinks", backlinks.create);
+router.post("/seo/backlinks/check", checkBacklinks);
+router.get("/seo/backlinks/:id", backlinks.getOne);
+router.put("/seo/backlinks/:id", backlinks.update);
+router.delete("/seo/backlinks/:id", backlinks.remove);
+
+router.get("/seo/social-accounts", socialAccounts.list);
+router.post("/seo/social-accounts", socialAccounts.create);
+router.post("/seo/social-accounts/:id/followers", recordFollowers);
+router.get("/seo/social-accounts/:id", socialAccounts.getOne);
+router.put("/seo/social-accounts/:id", socialAccounts.update);
+router.delete("/seo/social-accounts/:id", socialAccounts.remove);
+
+router.get("/seo/posts", socialPosts.list);
+router.post("/seo/posts", socialPosts.create);
+router.get("/seo/posts/:id", socialPosts.getOne);
+router.put("/seo/posts/:id", socialPosts.update);
+router.delete("/seo/posts/:id", socialPosts.remove);

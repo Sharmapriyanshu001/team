@@ -6,6 +6,7 @@ import {
   myAppDetail,
   staffCreateRelease,
 } from "../controllers/playConsoleController.js";
+import { mySeoWork } from "../controllers/seoController.js";
 import { loginBurstLimiter, loginLimiter } from "../middleware/security.js";
 import {
   employeeLogin,
@@ -265,3 +266,7 @@ router.get("/play/my-work", myPlayWork);
 router.get("/play/apps/:id", myAppDetail);
 // Recording what shipped is the work itself, so staff may add a release
 router.post("/play/apps/:id/releases", staffCreateRelease);
+
+/* ---------------------------------------------------------------- seo work */
+
+router.get("/seo/my-work", mySeoWork);

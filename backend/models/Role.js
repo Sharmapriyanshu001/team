@@ -17,6 +17,8 @@ export const PERMISSION_MODULES = [
   "code",
   // Play consoles, the apps on them, releases and policy notices
   "play_console",
+  // SEO and social retainers: rankings, audits, backlinks, the post calendar
+  "seo",
   "reports",
   "activity_logs",
   "roles",

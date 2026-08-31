@@ -10,6 +10,7 @@ import {
   FolderOpen,
   FileCode,
   Store,
+  Search,
   BarChart3,
   History,
   Bell,
@@ -29,6 +30,7 @@ import {
 const MODULE_BY_PATH = [
   ["/admin/code-projects", "code_projects"],
   ["/admin/play", "play_console"],
+  ["/admin/seo", "seo"],
   ["/admin/code-share", "code"],
   ["/admin/activity-logs", "activity_logs"],
   ["/admin/team-leaders", "team_leaders"],
@@ -171,6 +173,15 @@ export const NAV_ITEMS = [
       { label: "Consoles", to: "/admin/play/consoles" },
       { label: "Apps", to: "/admin/play/apps" },
       { label: "Policy Notices", to: "/admin/play/alerts" },
+    ],
+  },
+  {
+    label: "SEO & Social",
+    icon: Search,
+    key: "seo",
+    children: [
+      { label: "Engagements", to: "/admin/seo" },
+      { label: "Social", to: "/admin/seo/social" },
     ],
   },
   // Ungated on purpose, like the server route behind it: an inbox is how

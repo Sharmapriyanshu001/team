@@ -73,6 +73,13 @@ import LeaderPlayAppDetail from "./leader/pages/PlayAppDetail";
 import EmpPlayApps from "./employee/pages/PlayApps";
 import EmpPlayAppDetail from "./employee/pages/PlayAppDetail";
 
+import AdminSeoEngagements from "./admin/pages/seo/Engagements";
+import AdminSeoDetail from "./admin/pages/seo/EngagementDetail";
+import AdminSeoReport from "./admin/pages/seo/Report";
+import AdminSeoSocial from "./admin/pages/seo/Social";
+import LeaderSeoWork from "./leader/pages/SeoWork";
+import EmpSeoWork from "./employee/pages/SeoWork";
+
 import AdminPlayConsoles from "./admin/pages/play/Consoles";
 import AdminPlayApps from "./admin/pages/play/Apps";
 import AdminPlayAppDetail from "./admin/pages/play/AppDetail";
@@ -246,6 +253,11 @@ export default function App() {
         <Route path="code-share" element={<AdminCodeShare />} />
         <Route path="code-projects" element={<AdminCodeProjects />} />
         <Route path="code-projects/requests" element={<AdminCodeRequests />} />
+        <Route path="seo" element={<AdminSeoEngagements />} />
+        <Route path="seo/social" element={<AdminSeoSocial />} />
+        <Route path="seo/:id" element={<AdminSeoDetail />} />
+        <Route path="seo/:id/report" element={<AdminSeoReport />} />
+
         <Route path="play/consoles" element={<AdminPlayConsoles />} />
         <Route path="play/apps" element={<AdminPlayApps />} />
         <Route path="play/apps/:id" element={<AdminPlayAppDetail />} />
@@ -315,6 +327,7 @@ export default function App() {
 
         <Route path="issues" element={<LeaderIssues />} />
         <Route path="calendar" element={<Calendar />} />
+        <Route path="seo" element={<LeaderSeoWork />} />
         <Route path="play" element={<LeaderPlayApps />} />
         <Route path="play/:id" element={<LeaderPlayAppDetail />} />
 
@@ -376,6 +389,7 @@ export default function App() {
 
         <Route path="issues" element={<EmpIssues />} />
         <Route path="calendar" element={<EmpCalendar />} />
+        <Route path="seo" element={<EmpSeoWork />} />
         <Route path="play" element={<EmpPlayApps />} />
         <Route path="play/:id" element={<EmpPlayAppDetail />} />
 
