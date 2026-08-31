@@ -3,7 +3,7 @@ import express from "express";
 
 import adminAuth from "../middleware/adminAuth.js";
 import { loginBurstLimiter, loginLimiter } from "../middleware/security.js";
-import { guard, requireSuperAdmin } from "../middleware/permissions.js";
+import { guard, guardAction, requireSuperAdmin } from "../middleware/permissions.js";
 import {
   listAdministrators,
   updateAdministrator,
@@ -61,6 +61,32 @@ import {
   socialPosts,
   monthlyReport,
 } from "../controllers/seoController.js";
+import {
+  leads,
+  addLeadNote,
+  convertLead,
+  pipeline,
+  services,
+  quotations,
+  createQuotation,
+  updateQuotation,
+  quotationToInvoice,
+  invoices,
+  createInvoice,
+  updateInvoice,
+  addPayment,
+  removePayment,
+  invoiceDetail,
+  receivables,
+} from "../controllers/crmController.js";
+import {
+  listCredentials,
+  createCredential,
+  updateCredential,
+  removeCredential,
+  revealCredential,
+  credentialAccessLog,
+} from "../controllers/vaultController.js";
 import {
   teamLeaderPerformance,
   employeePerformance,
@@ -209,6 +235,8 @@ router.use("/code-share", guard("code"));
 router.use("/code", guard("code"));
 router.use("/play", guard("play_console"));
 router.use("/seo", guard("seo"));
+router.use("/crm", guard("crm"));
+router.use("/vault", guard("vault"));
 router.use("/reports", guard("reports"));
 router.use("/activity-logs", guard("activity_logs"));
 router.use("/roles", guard("roles"));
@@ -981,3 +1009,51 @@ router.post("/seo/posts", socialPosts.create);
 router.get("/seo/posts/:id", socialPosts.getOne);
 router.put("/seo/posts/:id", socialPosts.update);
 router.delete("/seo/posts/:id", socialPosts.remove);
+
+/* ---------------------------------------------------------- crm & billing */
+
+router.get("/crm/pipeline", pipeline);
+router.get("/crm/receivables", receivables);
+
+router.get("/crm/leads", leads.list);
+router.post("/crm/leads", leads.create);
+router.post("/crm/leads/:id/notes", addLeadNote);
+router.post("/crm/leads/:id/convert", convertLead);
+router.get("/crm/leads/:id", leads.getOne);
+router.put("/crm/leads/:id", leads.update);
+router.delete("/crm/leads/:id", leads.remove);
+
+router.get("/crm/services", services.list);
+router.post("/crm/services", services.create);
+router.get("/crm/services/:id", services.getOne);
+router.put("/crm/services/:id", services.update);
+router.delete("/crm/services/:id", services.remove);
+
+// The write paths are hand-written rather than generated: both carry a
+// numbering scheme and tax arithmetic that buildCrud has no way to know about.
+router.get("/crm/quotations", quotations.list);
+router.post("/crm/quotations", createQuotation);
+router.post("/crm/quotations/:id/invoice", quotationToInvoice);
+router.get("/crm/quotations/:id", quotations.getOne);
+router.put("/crm/quotations/:id", updateQuotation);
+router.delete("/crm/quotations/:id", quotations.remove);
+
+router.get("/crm/invoices", invoices.list);
+router.post("/crm/invoices", createInvoice);
+router.get("/crm/invoices/:id/detail", invoiceDetail);
+router.post("/crm/invoices/:id/payments", addPayment);
+router.delete("/crm/invoices/:id/payments/:paymentId", removePayment);
+router.get("/crm/invoices/:id", invoices.getOne);
+router.put("/crm/invoices/:id", updateInvoice);
+router.delete("/crm/invoices/:id", invoices.remove);
+
+/* ------------------------------------------------------------- the vault */
+
+router.get("/vault", listCredentials);
+router.post("/vault", createCredential);
+// A POST, not a GET — see the handler for why — so it is guarded as the read
+// it actually is rather than as the "create" its verb would imply.
+router.post("/vault/:id/reveal", guardAction("vault", "view"), revealCredential);
+router.get("/vault/:id/access-log", credentialAccessLog);
+router.put("/vault/:id", updateCredential);
+router.delete("/vault/:id", removeCredential);

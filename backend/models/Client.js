@@ -25,7 +25,13 @@ const clientSchema = new mongoose.Schema(
     tokenVersion: { type: Number, default: 0 },
     phone: { type: String, trim: true, default: "" },
     address: { type: String, trim: true, default: "" },
-    gstNumber: { type: String, trim: true, default: "" },
+    gstNumber: { type: String, trim: true, uppercase: true, default: "" },
+    /**
+     * Only needed for a client with no GSTIN — for everybody else it is the
+     * first two digits of that number, and deriving it beats keeping a second
+     * copy that can disagree.
+     */
+    stateCode: { type: String, trim: true, default: "" },
     status: {
       type: String,
       enum: ["active", "inactive", "lead"],

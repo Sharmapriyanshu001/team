@@ -73,6 +73,14 @@ import LeaderPlayAppDetail from "./leader/pages/PlayAppDetail";
 import EmpPlayApps from "./employee/pages/PlayApps";
 import EmpPlayAppDetail from "./employee/pages/PlayAppDetail";
 
+import AdminLeads from "./admin/pages/crm/Leads";
+import AdminQuotations from "./admin/pages/crm/Quotations";
+import AdminInvoices from "./admin/pages/crm/Invoices";
+import AdminInvoiceDetail from "./admin/pages/crm/InvoiceDetail";
+import AdminVault from "./admin/pages/vault/Vault";
+import LeaderVault from "./leader/pages/VaultPage";
+import EmpVault from "./employee/pages/VaultPage";
+
 import AdminSeoEngagements from "./admin/pages/seo/Engagements";
 import AdminSeoDetail from "./admin/pages/seo/EngagementDetail";
 import AdminSeoReport from "./admin/pages/seo/Report";
@@ -253,6 +261,12 @@ export default function App() {
         <Route path="code-share" element={<AdminCodeShare />} />
         <Route path="code-projects" element={<AdminCodeProjects />} />
         <Route path="code-projects/requests" element={<AdminCodeRequests />} />
+        <Route path="crm/leads" element={<AdminLeads />} />
+        <Route path="crm/quotations" element={<AdminQuotations />} />
+        <Route path="crm/invoices" element={<AdminInvoices />} />
+        <Route path="crm/invoices/:id" element={<AdminInvoiceDetail />} />
+        <Route path="vault" element={<AdminVault />} />
+
         <Route path="seo" element={<AdminSeoEngagements />} />
         <Route path="seo/social" element={<AdminSeoSocial />} />
         <Route path="seo/:id" element={<AdminSeoDetail />} />
@@ -328,6 +342,7 @@ export default function App() {
         <Route path="issues" element={<LeaderIssues />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="seo" element={<LeaderSeoWork />} />
+        <Route path="vault" element={<LeaderVault />} />
         <Route path="play" element={<LeaderPlayApps />} />
         <Route path="play/:id" element={<LeaderPlayAppDetail />} />
 
@@ -390,6 +405,7 @@ export default function App() {
         <Route path="issues" element={<EmpIssues />} />
         <Route path="calendar" element={<EmpCalendar />} />
         <Route path="seo" element={<EmpSeoWork />} />
+        <Route path="vault" element={<EmpVault />} />
         <Route path="play" element={<EmpPlayApps />} />
         <Route path="play/:id" element={<EmpPlayAppDetail />} />
 

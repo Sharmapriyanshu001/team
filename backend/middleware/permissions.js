@@ -120,6 +120,35 @@ export const guard = (module) => async (req, res, next) => {
   }
 };
 
+/**
+ * The same check, but for a route whose HTTP verb does not describe what it
+ * does.
+ *
+ * Revealing a vault secret is the case this exists for: it is a POST, because
+ * a GET would be prefetched and logged with its URL, but what it performs is a
+ * read. Left to the verb it would demand "create" on the vault — so an admin
+ * granted view-only would be told their role does not allow them to *create*
+ * vault entries, when all they did was click Reveal.
+ */
+export const guardAction = (module, action) => async (req, res, next) => {
+  try {
+    const permissions = await permissionsFor(req);
+
+    if (permissions.broken) return res.status(403).json({ message: permissions.broken });
+    if (can(permissions, module, action)) return next();
+
+    const readable = module.replace(/_/g, " ");
+    return res.status(403).json({
+      message: `Your role does not allow you to ${action} ${readable}`,
+      module,
+      action,
+    });
+  } catch (err) {
+    console.error("permission guard error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 /** For the handful of actions only a super admin may take. */
 export const requireSuperAdmin = (req, res, next) => {
   if (req.admin?.role === SUPER_ADMIN) return next();

@@ -11,6 +11,8 @@ import {
   FileCode,
   Store,
   Search,
+  Handshake,
+  KeyRound,
   BarChart3,
   History,
   Bell,
@@ -31,6 +33,8 @@ const MODULE_BY_PATH = [
   ["/admin/code-projects", "code_projects"],
   ["/admin/play", "play_console"],
   ["/admin/seo", "seo"],
+  ["/admin/crm", "crm"],
+  ["/admin/vault", "vault"],
   ["/admin/code-share", "code"],
   ["/admin/activity-logs", "activity_logs"],
   ["/admin/team-leaders", "team_leaders"],
@@ -184,6 +188,17 @@ export const NAV_ITEMS = [
       { label: "Social", to: "/admin/seo/social" },
     ],
   },
+  {
+    label: "Sales & Billing",
+    icon: Handshake,
+    key: "crm",
+    children: [
+      { label: "Leads", to: "/admin/crm/leads" },
+      { label: "Quotations", to: "/admin/crm/quotations" },
+      { label: "Invoices", to: "/admin/crm/invoices" },
+    ],
+  },
+  { label: "Vault", to: "/admin/vault", icon: KeyRound },
   // Ungated on purpose, like the server route behind it: an inbox is how
   // this account is told what is happening to it, not a section that can be
   // granted or withheld.

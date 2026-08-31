@@ -19,6 +19,11 @@ export const PERMISSION_MODULES = [
   "play_console",
   // SEO and social retainers: rankings, audits, backlinks, the post calendar
   "seo",
+  // Leads, quotations, invoices and payments
+  "crm",
+  // The credential vault. Its own module because access to it is a decision
+  // about trust, not about which part of the business somebody works in.
+  "vault",
   "reports",
   "activity_logs",
   "roles",

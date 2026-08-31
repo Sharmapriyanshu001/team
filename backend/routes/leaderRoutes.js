@@ -7,6 +7,7 @@ import {
   staffCreateRelease,
 } from "../controllers/playConsoleController.js";
 import { mySeoWork } from "../controllers/seoController.js";
+import { myCredentials, revealCredential } from "../controllers/vaultController.js";
 import { loginBurstLimiter, loginLimiter } from "../middleware/security.js";
 import {
   leaderLogin,
@@ -332,3 +333,13 @@ router.post("/play/apps/:id/releases", staffCreateRelease);
 /* ---------------------------------------------------------------- seo work */
 
 router.get("/seo/my-work", mySeoWork);
+
+/* ------------------------------------------------------------- the vault */
+
+/**
+ * Only what has been shared with this account, and the secret only when asked
+ * for by name. revealCredential checks sharedWith itself for anyone who is not
+ * an admin, and writes down who looked.
+ */
+router.get("/vault", myCredentials);
+router.post("/vault/:id/reveal", revealCredential);

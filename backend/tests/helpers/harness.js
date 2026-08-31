@@ -35,6 +35,8 @@ export const startHarness = async ({ port = 5901 } = {}) => {
       PREVIEW_PORT: String(port + 1),
       MONGO_URI: uri,
       JWT_SECRET: crypto.randomBytes(48).toString("base64url"),
+      // A fresh vault key per run, so no test can read another run's secrets
+      VAULT_KEY: crypto.randomBytes(32).toString("base64url"),
       NODE_ENV: "test",
       CORS_ORIGINS: "",
     },
@@ -58,6 +60,20 @@ export const startHarness = async ({ port = 5901 } = {}) => {
   }
 
   await mongoose.connect(uri);
+
+  /**
+   * Wait for the indexes before handing the suite a server.
+   *
+   * Mongoose builds them in the background once a connection opens, so on a
+   * database created milliseconds ago a unique index may not exist yet — and a
+   * test asserting that a duplicate is refused then passes or fails depending
+   * on the machine it ran on. Building them here makes that deterministic.
+   *
+   * The models are imported for their side effect of registering themselves;
+   * importing the server's routes is what pulls every one of them in.
+   */
+  await import("../../routes/adminRoutes.js");
+  await Promise.all(Object.values(mongoose.models).map((model) => model.syncIndexes()));
 
   /** Tiny fetch wrapper: JSON in, { status, body } out, token optional. */
   const request = async (method, path, { body, token } = {}) => {

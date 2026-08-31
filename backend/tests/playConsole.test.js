@@ -111,7 +111,8 @@ describe("apps", () => {
       { name: "Second", packageName: "COM.STUDIO.TAKEN", console: consoleId },
       T()
     );
-    assert.equal(two.status, 409, "case difference must not defeat the check");
+    assert.equal(two.status, 400, "case difference must not defeat the check");
+    assert.match(two.body.message, /already recorded as "First"/, two.body.message);
   });
 
   test("the store listing keeps Google's length limits", async () => {

@@ -182,6 +182,27 @@ export const apps = buildCrud(PublishedApp, {
           "That is not a valid package name — it should look like com.company.app"
         );
       }
+      /**
+       * Checked explicitly as well as by the unique index. The index is what
+       * actually guarantees it, but its error can only say that something
+       * clashed — and "com.acme.app is already on Studio Main" is the sentence
+       * that saves somebody opening four consoles to find out where.
+       */
+      const clash = await PublishedApp.findOne({
+        packageName: pkg,
+        ...(existing ? { _id: { $ne: existing._id } } : {}),
+      })
+        .select("name console")
+        .populate("console", "name");
+
+      if (clash) {
+        throw new InvalidInput(
+          `${pkg} is already recorded as "${clash.name}"${
+            clash.console?.name ? ` on ${clash.console.name}` : ""
+          }`
+        );
+      }
+
       data.packageName = pkg;
     }
 
