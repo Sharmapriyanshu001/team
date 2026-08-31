@@ -1,0 +1,21 @@
+{
+  "//": [
+    "uploads/ holds user data, not source: uploaded archives and the project",
+    "workspaces extracted from them.",
+    "",
+    "Without this, extracting a Node project writes hundreds of .js files into",
+    "backend/uploads/workspaces/, nodemon sees them as source changes and",
+    "restarts the server part-way through the upload — leaving a project record",
+    "with no files and a half-extracted folder on disk.",
+    "",
+    "Nothing under uploads/ is ever imported by the server, so nothing there is",
+    "a reason to restart it."
+  ],
+  "ignore": [
+    "uploads/**",
+    "*.log",
+    "_*.js"
+  ],
+  "ext": "js,mjs,cjs,json",
+  "delay": "500"
+}
