@@ -30,12 +30,19 @@ const isProduction = process.env.NODE_ENV === "production";
  * laptop until somebody writes a config file only teaches people to disable
  * the check.
  */
-const DEV_ORIGINS = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:4173",
-  "http://127.0.0.1:4173",
-];
+/**
+ * In development the port is not knowable in advance. Vite asks for 5173, and
+ * when something already holds it — a second panel, a dev server left running
+ * in another terminal — it silently takes 5174, then 5175. Naming a fixed list
+ * here meant the first person to open two dev servers got a 403 on login and
+ * no clue why, which is a bad trade for a check that is only meant to matter
+ * in production anyway.
+ *
+ * So development trusts the loopback interface and nothing else. Production is
+ * unaffected: there the list is exact and this function is never consulted.
+ */
+const isLoopbackOrigin = (origin) =>
+  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
 
 const readOrigins = () => {
   const configured = (process.env.CORS_ORIGINS || "")
@@ -53,8 +60,8 @@ const readOrigins = () => {
     process.exit(1);
   }
 
-  console.warn("⚠️  CORS_ORIGINS not set — allowing local dev origins only.");
-  return DEV_ORIGINS;
+  console.warn("⚠️  CORS_ORIGINS not set — allowing any localhost origin (development only).");
+  return [];
 };
 
 export const allowedOrigins = readOrigins();
@@ -65,11 +72,16 @@ export const allowedOrigins = readOrigins();
  * CORS has nothing to say about those, so they pass; the bearer token is what
  * actually guards them.
  */
+export const originAllowed = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin.replace(/\/$/, ""))) return true;
+  // Only ever true off production, where allowedOrigins is deliberately empty
+  return !isProduction && !allowedOrigins.length && isLoopbackOrigin(origin);
+};
+
 export const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ""))) {
-      return callback(null, true);
-    }
+    if (originAllowed(origin)) return callback(null, true);
     return callback(new Error(`Origin ${origin} is not allowed`));
   },
   credentials: true,

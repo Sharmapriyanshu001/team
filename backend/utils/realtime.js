@@ -6,7 +6,7 @@ import User from "../models/User.js";
 import Client from "../models/Client.js";
 import Project from "../models/Project.js";
 import Setting from "../models/Setting.js";
-import { allowedOrigins } from "../middleware/security.js";
+import { originAllowed } from "../middleware/security.js";
 
 /**
  * Live chat over Socket.IO.
@@ -132,7 +132,10 @@ export const initRealtime = (httpServer) => {
    * thing a socket does that a stolen token cannot otherwise do quietly.
    */
   io = new Server(httpServer, {
-    cors: { origin: allowedOrigins, credentials: true },
+    cors: {
+      origin: (origin, callback) => callback(null, originAllowed(origin)),
+      credentials: true,
+    },
   });
 
   io.use(async (socket, next) => {
