@@ -31,6 +31,19 @@ import {
 import { getDashboard } from "../controllers/dashboardController.js";
 import { getInsight } from "../controllers/insightsController.js";
 import {
+  consoles,
+  removeConsole,
+  apps,
+  removeApp,
+  appDetail,
+  listReleases,
+  createRelease,
+  updateRelease,
+  removeRelease,
+  alerts,
+  playOverview,
+} from "../controllers/playConsoleController.js";
+import {
   teamLeaderPerformance,
   employeePerformance,
 } from "../controllers/performanceController.js";
@@ -176,6 +189,7 @@ router.use("/code-projects", guard("code_projects"));
 router.use("/workspace", guard("code_projects"));
 router.use("/code-share", guard("code"));
 router.use("/code", guard("code"));
+router.use("/play", guard("play_console"));
 router.use("/reports", guard("reports"));
 router.use("/activity-logs", guard("activity_logs"));
 router.use("/roles", guard("roles"));
@@ -863,3 +877,38 @@ router.get("/lookups", async (req, res) => {
 });
 
 export default router;
+
+/* ------------------------------------------------------------ google play */
+
+/**
+ * Everything under /play is one module in the permission matrix. Consoles,
+ * apps, releases and policy notices are one job done by one group of people —
+ * splitting them into four toggles would only produce roles that can see an
+ * app but not what shipped on it.
+ */
+
+router.get("/play/overview", playOverview);
+
+router.get("/play/consoles", consoles.list);
+router.post("/play/consoles", consoles.create);
+router.get("/play/consoles/:id", consoles.getOne);
+router.put("/play/consoles/:id", consoles.update);
+router.delete("/play/consoles/:id", removeConsole);
+
+router.get("/play/apps", apps.list);
+router.post("/play/apps", apps.create);
+// Ahead of "/play/apps/:id" so "detail" is never read as an id
+router.get("/play/apps/:id/detail", appDetail);
+router.get("/play/apps/:id/releases", listReleases);
+router.post("/play/apps/:id/releases", createRelease);
+router.put("/play/apps/:id/releases/:releaseId", updateRelease);
+router.delete("/play/apps/:id/releases/:releaseId", removeRelease);
+router.get("/play/apps/:id", apps.getOne);
+router.put("/play/apps/:id", apps.update);
+router.delete("/play/apps/:id", removeApp);
+
+router.get("/play/alerts", alerts.list);
+router.post("/play/alerts", alerts.create);
+router.get("/play/alerts/:id", alerts.getOne);
+router.put("/play/alerts/:id", alerts.update);
+router.delete("/play/alerts/:id", alerts.remove);

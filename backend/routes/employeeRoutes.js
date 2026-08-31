@@ -1,6 +1,11 @@
 import express from "express";
 
 import employeeAuth from "../middleware/employeeAuth.js";
+import {
+  myPlayWork,
+  myAppDetail,
+  staffCreateRelease,
+} from "../controllers/playConsoleController.js";
 import { loginBurstLimiter, loginLimiter } from "../middleware/security.js";
 import {
   employeeLogin,
@@ -248,3 +253,15 @@ router.put("/notifications/:id/read", markNotificationRead);
 router.get("/lookups", getLookups);
 
 export default router;
+
+/* ------------------------------------------------------------ google play */
+
+/**
+ * What this account has been put on, and nothing else. The controller decides
+ * scope from the id arrays rather than trusting anything in the request, so
+ * these three routes need no guard of their own.
+ */
+router.get("/play/my-work", myPlayWork);
+router.get("/play/apps/:id", myAppDetail);
+// Recording what shipped is the work itself, so staff may add a release
+router.post("/play/apps/:id/releases", staffCreateRelease);

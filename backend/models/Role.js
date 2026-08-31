@@ -15,6 +15,8 @@ export const PERMISSION_MODULES = [
   // browser workspace, archives sent person to person, and the review queue.
   "code_projects",
   "code",
+  // Play consoles, the apps on them, releases and policy notices
+  "play_console",
   "reports",
   "activity_logs",
   "roles",

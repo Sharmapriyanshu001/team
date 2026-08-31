@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   FolderOpen,
   FileCode,
+  Store,
   BarChart3,
   History,
   Bell,
@@ -27,6 +28,7 @@ import {
  */
 const MODULE_BY_PATH = [
   ["/admin/code-projects", "code_projects"],
+  ["/admin/play", "play_console"],
   ["/admin/code-share", "code"],
   ["/admin/activity-logs", "activity_logs"],
   ["/admin/team-leaders", "team_leaders"],
@@ -157,6 +159,18 @@ export const NAV_ITEMS = [
       { label: "Requests & Bin", to: "/admin/code-projects/requests" },
       { label: "Send / Receive", to: "/admin/code-share" },
       { label: "Code Review", to: "/admin/code" },
+    ],
+  },
+  // Google Play: the developer accounts, what is published on them, and what
+  // Google is unhappy about. One permission module — see adminRoutes.
+  {
+    label: "Play Store",
+    icon: Store,
+    key: "play",
+    children: [
+      { label: "Consoles", to: "/admin/play/consoles" },
+      { label: "Apps", to: "/admin/play/apps" },
+      { label: "Policy Notices", to: "/admin/play/alerts" },
     ],
   },
   // Ungated on purpose, like the server route behind it: an inbox is how

@@ -8,6 +8,7 @@ import {
   History,
   FolderOpen,
   FileCode,
+  Store,
   MessagesSquare,
   AlertTriangle,
   CalendarDays,
@@ -88,6 +89,7 @@ export const buildNavItems = ({
 
   { label: "Issues", to: "/employee/issues", icon: AlertTriangle },
   { label: "Calendar", to: "/employee/calendar", icon: CalendarDays },
+  { label: "Play Store", to: "/employee/play", icon: Store },
   { label: "Notifications", to: "/employee/notifications", icon: Bell, badge: unread },
   { label: "Profile", to: "/employee/profile", icon: User },
   { label: "Logout", icon: LogOut, action: onLogout },

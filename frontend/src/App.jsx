@@ -68,6 +68,16 @@ import ActivityLogs from "./admin/pages/ActivityLogs";
 import RolesPermissions from "./admin/pages/RolesPermissions";
 import Settings from "./admin/pages/Settings";
 import AdminProfile from "./admin/pages/Profile";
+import LeaderPlayApps from "./leader/pages/PlayApps";
+import LeaderPlayAppDetail from "./leader/pages/PlayAppDetail";
+import EmpPlayApps from "./employee/pages/PlayApps";
+import EmpPlayAppDetail from "./employee/pages/PlayAppDetail";
+
+import AdminPlayConsoles from "./admin/pages/play/Consoles";
+import AdminPlayApps from "./admin/pages/play/Apps";
+import AdminPlayAppDetail from "./admin/pages/play/AppDetail";
+import AdminPlayAlerts from "./admin/pages/play/PolicyAlerts";
+
 import AdminNotifications from "./admin/pages/Notifications";
 import InsightDetails from "./admin/pages/InsightDetails";
 
@@ -236,6 +246,11 @@ export default function App() {
         <Route path="code-share" element={<AdminCodeShare />} />
         <Route path="code-projects" element={<AdminCodeProjects />} />
         <Route path="code-projects/requests" element={<AdminCodeRequests />} />
+        <Route path="play/consoles" element={<AdminPlayConsoles />} />
+        <Route path="play/apps" element={<AdminPlayApps />} />
+        <Route path="play/apps/:id" element={<AdminPlayAppDetail />} />
+        <Route path="play/alerts" element={<AdminPlayAlerts />} />
+
         <Route path="notifications" element={<AdminNotifications />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="activity-logs" element={<ActivityLogs />} />
@@ -300,6 +315,9 @@ export default function App() {
 
         <Route path="issues" element={<LeaderIssues />} />
         <Route path="calendar" element={<Calendar />} />
+        <Route path="play" element={<LeaderPlayApps />} />
+        <Route path="play/:id" element={<LeaderPlayAppDetail />} />
+
         <Route path="notifications" element={<Notifications />} />
         <Route path="reports" element={<LeaderReports />} />
         <Route path="profile" element={<LeaderProfile />} />
@@ -358,6 +376,9 @@ export default function App() {
 
         <Route path="issues" element={<EmpIssues />} />
         <Route path="calendar" element={<EmpCalendar />} />
+        <Route path="play" element={<EmpPlayApps />} />
+        <Route path="play/:id" element={<EmpPlayAppDetail />} />
+
         <Route path="notifications" element={<EmpNotifications />} />
         <Route path="profile" element={<EmpProfile />} />
       </Route>
