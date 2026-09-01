@@ -8,6 +8,7 @@ import {
 } from "../controllers/playConsoleController.js";
 import { mySeoWork } from "../controllers/seoController.js";
 import { myCredentials, revealCredential } from "../controllers/vaultController.js";
+import { myAdsWork, myAccountDetail, staffRecordDay } from "../controllers/adsController.js";
 import { loginBurstLimiter, loginLimiter } from "../middleware/security.js";
 import {
   leaderLogin,
@@ -343,3 +344,14 @@ router.get("/seo/my-work", mySeoWork);
  */
 router.get("/vault", myCredentials);
 router.post("/vault/:id/reveal", revealCredential);
+
+/* --------------------------------------------------------- paid advertising */
+
+/**
+ * The accounts this person is on, and the numbers for them. No money position:
+ * what the studio is owed, or what is left of a client's advance, is between
+ * the admin and the client.
+ */
+router.get("/ads/my-work", myAdsWork);
+router.get("/ads/accounts/:id", myAccountDetail);
+router.post("/ads/campaigns/:campaignId/days", staffRecordDay);

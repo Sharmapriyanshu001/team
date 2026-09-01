@@ -73,6 +73,14 @@ import LeaderPlayAppDetail from "./leader/pages/PlayAppDetail";
 import EmpPlayApps from "./employee/pages/PlayApps";
 import EmpPlayAppDetail from "./employee/pages/PlayAppDetail";
 
+import AdminAdAccounts from "./admin/pages/ads/Accounts";
+import AdminAdAccountDetail from "./admin/pages/ads/AccountDetail";
+import AdminAdReport from "./admin/pages/ads/Report";
+import LeaderAdsWork from "./leader/pages/AdsWork";
+import LeaderAdAccount from "./leader/pages/AdAccountPage";
+import EmpAdsWork from "./employee/pages/AdsWork";
+import EmpAdAccount from "./employee/pages/AdAccountPage";
+
 import AdminLeads from "./admin/pages/crm/Leads";
 import AdminQuotations from "./admin/pages/crm/Quotations";
 import AdminInvoices from "./admin/pages/crm/Invoices";
@@ -261,6 +269,10 @@ export default function App() {
         <Route path="code-share" element={<AdminCodeShare />} />
         <Route path="code-projects" element={<AdminCodeProjects />} />
         <Route path="code-projects/requests" element={<AdminCodeRequests />} />
+        <Route path="ads" element={<AdminAdAccounts />} />
+        <Route path="ads/:id" element={<AdminAdAccountDetail />} />
+        <Route path="ads/:id/report" element={<AdminAdReport />} />
+
         <Route path="crm/leads" element={<AdminLeads />} />
         <Route path="crm/quotations" element={<AdminQuotations />} />
         <Route path="crm/invoices" element={<AdminInvoices />} />
@@ -342,6 +354,8 @@ export default function App() {
         <Route path="issues" element={<LeaderIssues />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="seo" element={<LeaderSeoWork />} />
+        <Route path="ads" element={<LeaderAdsWork />} />
+        <Route path="ads/:id" element={<LeaderAdAccount />} />
         <Route path="vault" element={<LeaderVault />} />
         <Route path="play" element={<LeaderPlayApps />} />
         <Route path="play/:id" element={<LeaderPlayAppDetail />} />
@@ -405,6 +419,8 @@ export default function App() {
         <Route path="issues" element={<EmpIssues />} />
         <Route path="calendar" element={<EmpCalendar />} />
         <Route path="seo" element={<EmpSeoWork />} />
+        <Route path="ads" element={<EmpAdsWork />} />
+        <Route path="ads/:id" element={<EmpAdAccount />} />
         <Route path="vault" element={<EmpVault />} />
         <Route path="play" element={<EmpPlayApps />} />
         <Route path="play/:id" element={<EmpPlayAppDetail />} />

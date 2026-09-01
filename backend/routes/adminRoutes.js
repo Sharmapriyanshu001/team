@@ -80,6 +80,21 @@ import {
   receivables,
 } from "../controllers/crmController.js";
 import {
+  accounts as adAccounts,
+  accountDetail,
+  adsOverview,
+  listCampaigns,
+  campaignDetail,
+  createCampaign,
+  updateCampaign,
+  removeCampaign,
+  recordDay,
+  importDays,
+  addTopup,
+  billPeriod,
+  periodReport,
+} from "../controllers/adsController.js";
+import {
   listCredentials,
   createCredential,
   updateCredential,
@@ -236,6 +251,7 @@ router.use("/code", guard("code"));
 router.use("/play", guard("play_console"));
 router.use("/seo", guard("seo"));
 router.use("/crm", guard("crm"));
+router.use("/ads", guard("ads"));
 router.use("/vault", guard("vault"));
 router.use("/reports", guard("reports"));
 router.use("/activity-logs", guard("activity_logs"));
@@ -1057,3 +1073,25 @@ router.post("/vault/:id/reveal", guardAction("vault", "view"), revealCredential)
 router.get("/vault/:id/access-log", credentialAccessLog);
 router.put("/vault/:id", updateCredential);
 router.delete("/vault/:id", removeCredential);
+
+/* --------------------------------------------------------- paid advertising */
+
+router.get("/ads/overview", adsOverview);
+
+router.get("/ads/accounts", adAccounts.list);
+router.post("/ads/accounts", adAccounts.create);
+// The named sub-paths sit above "/:id" so none of them is read as an id
+router.get("/ads/accounts/:id/detail", accountDetail);
+router.get("/ads/accounts/:id/report", periodReport);
+router.get("/ads/accounts/:id/campaigns", listCampaigns);
+router.post("/ads/accounts/:id/campaigns", createCampaign);
+router.post("/ads/accounts/:id/import", importDays);
+router.post("/ads/accounts/:id/topups", addTopup);
+router.post("/ads/accounts/:id/bill", billPeriod);
+router.get("/ads/accounts/:id/campaigns/:campaignId", campaignDetail);
+router.put("/ads/accounts/:id/campaigns/:campaignId", updateCampaign);
+router.delete("/ads/accounts/:id/campaigns/:campaignId", removeCampaign);
+router.post("/ads/accounts/:id/campaigns/:campaignId/days", recordDay);
+router.get("/ads/accounts/:id", adAccounts.getOne);
+router.put("/ads/accounts/:id", adAccounts.update);
+router.delete("/ads/accounts/:id", adAccounts.remove);

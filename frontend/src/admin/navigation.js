@@ -12,6 +12,7 @@ import {
   Store,
   Search,
   Handshake,
+  Megaphone,
   KeyRound,
   BarChart3,
   History,
@@ -34,6 +35,7 @@ const MODULE_BY_PATH = [
   ["/admin/play", "play_console"],
   ["/admin/seo", "seo"],
   ["/admin/crm", "crm"],
+  ["/admin/ads", "ads"],
   ["/admin/vault", "vault"],
   ["/admin/code-share", "code"],
   ["/admin/activity-logs", "activity_logs"],
@@ -198,6 +200,7 @@ export const NAV_ITEMS = [
       { label: "Invoices", to: "/admin/crm/invoices" },
     ],
   },
+  { label: "Ads", to: "/admin/ads", icon: Megaphone },
   { label: "Vault", to: "/admin/vault", icon: KeyRound },
   // Ungated on purpose, like the server route behind it: an inbox is how
   // this account is told what is happening to it, not a section that can be

@@ -11,6 +11,7 @@ import {
   Store,
   Search,
   KeyRound,
+  Megaphone,
   MessagesSquare,
   AlertTriangle,
   CalendarDays,
@@ -102,6 +103,7 @@ export const buildNavItems = ({
 
   { label: "Play Store", to: "/team-leader/play", icon: Store },
   { label: "SEO & Social", to: "/team-leader/seo", icon: Search },
+  { label: "Ads", to: "/team-leader/ads", icon: Megaphone },
   { label: "Vault", to: "/team-leader/vault", icon: KeyRound },
   { label: "Issues", to: "/team-leader/issues", icon: AlertTriangle },
   { label: "Calendar", to: "/team-leader/calendar", icon: CalendarDays },

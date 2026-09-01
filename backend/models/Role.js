@@ -21,6 +21,8 @@ export const PERMISSION_MODULES = [
   "seo",
   // Leads, quotations, invoices and payments
   "crm",
+  // Paid advertising: Meta and Google accounts, campaigns and spend
+  "ads",
   // The credential vault. Its own module because access to it is a decision
   // about trust, not about which part of the business somebody works in.
   "vault",
