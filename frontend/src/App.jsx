@@ -73,6 +73,9 @@ import LeaderPlayAppDetail from "./leader/pages/PlayAppDetail";
 import EmpPlayApps from "./employee/pages/PlayApps";
 import EmpPlayAppDetail from "./employee/pages/PlayAppDetail";
 
+import AdminPortfolio from "./admin/pages/portfolio/Portfolio";
+import AdminPropertyDetail from "./admin/pages/portfolio/PropertyDetail";
+
 import AdminAdAccounts from "./admin/pages/ads/Accounts";
 import AdminAdAccountDetail from "./admin/pages/ads/AccountDetail";
 import AdminAdReport from "./admin/pages/ads/Report";
@@ -269,6 +272,9 @@ export default function App() {
         <Route path="code-share" element={<AdminCodeShare />} />
         <Route path="code-projects" element={<AdminCodeProjects />} />
         <Route path="code-projects/requests" element={<AdminCodeRequests />} />
+        <Route path="portfolio" element={<AdminPortfolio />} />
+        <Route path="portfolio/:id" element={<AdminPropertyDetail />} />
+
         <Route path="ads" element={<AdminAdAccounts />} />
         <Route path="ads/:id" element={<AdminAdAccountDetail />} />
         <Route path="ads/:id/report" element={<AdminAdReport />} />

@@ -13,6 +13,7 @@ import {
   Search,
   Handshake,
   Megaphone,
+  Landmark,
   KeyRound,
   BarChart3,
   History,
@@ -36,6 +37,7 @@ const MODULE_BY_PATH = [
   ["/admin/seo", "seo"],
   ["/admin/crm", "crm"],
   ["/admin/ads", "ads"],
+  ["/admin/portfolio", "portfolio"],
   ["/admin/vault", "vault"],
   ["/admin/code-share", "code"],
   ["/admin/activity-logs", "activity_logs"],
@@ -201,6 +203,9 @@ export const NAV_ITEMS = [
     ],
   },
   { label: "Ads", to: "/admin/ads", icon: Megaphone },
+  // Our own apps and sites, as opposed to everything else here, which is
+  // work done for somebody else
+  { label: "Our Portfolio", to: "/admin/portfolio", icon: Landmark },
   { label: "Vault", to: "/admin/vault", icon: KeyRound },
   // Ungated on purpose, like the server route behind it: an inbox is how
   // this account is told what is happening to it, not a section that can be

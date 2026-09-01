@@ -95,6 +95,18 @@ import {
   periodReport,
 } from "../controllers/adsController.js";
 import {
+  properties,
+  propertyDetail,
+  propertyHistory,
+  listEntries,
+  addEntry,
+  updateEntry,
+  removeEntry,
+  payPartner,
+  listPayouts,
+  portfolio,
+} from "../controllers/portfolioController.js";
+import {
   listCredentials,
   createCredential,
   updateCredential,
@@ -252,6 +264,7 @@ router.use("/play", guard("play_console"));
 router.use("/seo", guard("seo"));
 router.use("/crm", guard("crm"));
 router.use("/ads", guard("ads"));
+router.use("/portfolio", guard("portfolio"));
 router.use("/vault", guard("vault"));
 router.use("/reports", guard("reports"));
 router.use("/activity-logs", guard("activity_logs"));
@@ -1095,3 +1108,28 @@ router.post("/ads/accounts/:id/campaigns/:campaignId/days", recordDay);
 router.get("/ads/accounts/:id", adAccounts.getOne);
 router.put("/ads/accounts/:id", adAccounts.update);
 router.delete("/ads/accounts/:id", adAccounts.remove);
+
+/* ------------------------------------------------------- our own portfolio */
+
+/**
+ * Apps and sites the studio owns rather than builds to order. Its own module
+ * because access to it is a question about the studio's own money, not about
+ * which client work somebody handles.
+ */
+
+router.get("/portfolio", portfolio);
+
+router.get("/portfolio/properties", properties.list);
+router.post("/portfolio/properties", properties.create);
+// Named sub-paths ahead of "/:id" so none of them is read as an id
+router.get("/portfolio/properties/:id/detail", propertyDetail);
+router.get("/portfolio/properties/:id/history", propertyHistory);
+router.get("/portfolio/properties/:id/entries", listEntries);
+router.post("/portfolio/properties/:id/entries", addEntry);
+router.put("/portfolio/properties/:id/entries/:entryId", updateEntry);
+router.delete("/portfolio/properties/:id/entries/:entryId", removeEntry);
+router.get("/portfolio/properties/:id/payouts", listPayouts);
+router.post("/portfolio/properties/:id/partners/:partnerId/pay", payPartner);
+router.get("/portfolio/properties/:id", properties.getOne);
+router.put("/portfolio/properties/:id", properties.update);
+router.delete("/portfolio/properties/:id", properties.remove);
