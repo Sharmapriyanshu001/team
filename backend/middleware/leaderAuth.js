@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
-import User from "../models/User.js";
+import User, { LEADER_ROLES } from "../models/User.js";
 import Project from "../models/Project.js";
+import Team from "../models/Team.js";
 
 // Verify the bearer token and make sure the account is a team leader.
 const leaderAuth = async (req, res, next) => {
@@ -15,7 +16,7 @@ const leaderAuth = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select("-password");
 
-    if (!user || user.role !== "team_leader") {
+    if (!user || !LEADER_ROLES.includes(user.role)) {
       return res.status(403).json({ message: "Team leader access only", code: "AUTH" });
     }
     if (user.status !== "active") {
@@ -46,15 +47,55 @@ const leaderAuth = async (req, res, next) => {
  * the employees reporting to them. Cached on the request so a handler that
  * needs both only pays for one round trip.
  */
+/**
+ * What this account can see.
+ *
+ * A team leader sees the projects they lead and the people who report to them,
+ * which is unchanged. A manager sees the same for every team they run — their
+ * department, not one project — so a Sales manager reaches all five
+ * executives without being made to lead each of them individually.
+ */
 export const getScope = async (req) => {
   if (req.scope) return req.scope;
 
-  const [projectIds, teamIds] = await Promise.all([
+  const isManager = req.leader.role === "manager";
+
+  const managedTeams = isManager
+    ? await Team.find({ manager: req.leader._id, active: true }).select("teamLeaders members")
+    : [];
+
+  const departmentIds = [
+    ...new Set(
+      managedTeams.flatMap((team) =>
+        [...(team.teamLeaders || []), ...(team.members || [])].map(String)
+      )
+    ),
+  ];
+
+  const [ledProjects, directReports] = await Promise.all([
     Project.find({ teamLeader: req.leader._id }).distinct("_id"),
     User.find({ reportsTo: req.leader._id }).distinct("_id"),
   ]);
 
-  req.scope = { projectIds, teamIds };
+  const teamIds = [
+    ...new Set([...directReports.map(String), ...departmentIds]),
+  ];
+
+  // A manager also reaches whatever their people are working on
+  const projectIds = isManager
+    ? [
+        ...new Set(
+          [
+            ...ledProjects.map(String),
+            ...(await Project.find({
+              $or: [{ members: { $in: teamIds } }, { teamLeader: { $in: teamIds } }],
+            }).distinct("_id")).map(String),
+          ]
+        ),
+      ]
+    : ledProjects;
+
+  req.scope = { projectIds, teamIds, isManager, managedTeamIds: managedTeams.map((t) => t._id) };
   return req.scope;
 };
 

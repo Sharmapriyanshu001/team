@@ -1,5 +1,5 @@
 import { signStaffToken } from "../../utils/token.js";
-import User from "../../models/User.js";
+import User, { LEADER_ROLES } from "../../models/User.js";
 import Setting from "../../models/Setting.js";
 import ActivityLog from "../../models/ActivityLog.js";
 import { hashPassword, comparePassword } from "../../utils/password.js";
@@ -37,7 +37,12 @@ export const leaderLogin = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    if (user.role !== "team_leader") {
+    /**
+     * A department manager signs in here too. They are not an administrator —
+     * they answer for a team's numbers — so the leader panel is the right
+     * place for them, widened to their whole department by leaderAuth's scope.
+     */
+    if (!LEADER_ROLES.includes(user.role)) {
       return res.status(403).json({ message: "This account is not a team leader" });
     }
     if (user.status !== "active") {

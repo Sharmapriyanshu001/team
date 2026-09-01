@@ -9,6 +9,7 @@ import {
 import { mySeoWork } from "../controllers/seoController.js";
 import { myCredentials, revealCredential } from "../controllers/vaultController.js";
 import { myAdsWork, myAccountDetail, staffRecordDay } from "../controllers/adsController.js";
+import { myTeam } from "../controllers/teamController.js";
 import { loginBurstLimiter, loginLimiter } from "../middleware/security.js";
 import {
   leaderLogin,
@@ -355,3 +356,8 @@ router.post("/vault/:id/reveal", revealCredential);
 router.get("/ads/my-work", myAdsWork);
 router.get("/ads/accounts/:id", myAccountDetail);
 router.post("/ads/campaigns/:campaignId/days", staffRecordDay);
+
+/* ------------------------------------------------------------- my team */
+
+/** The teams this account is on, and the targets it carries this month. */
+router.get("/team/mine", myTeam);

@@ -6,7 +6,26 @@ import mongoose from "mongoose";
  * an admin" a super admin answers yes too. Nothing that worked before this
  * role existed behaves differently because of it.
  */
-export const USER_ROLES = ["super_admin", "admin", "team_leader", "employee", "user"];
+/**
+ * "manager" sits between admin and team_leader: a department head who answers
+ * for a team's numbers but is not an administrator of the panel. They sign in
+ * through the team leader's panel and see their whole department rather than
+ * one project — see middleware/leaderAuth.js.
+ *
+ * Added at the end of the meaningful order rather than the array, because
+ * nothing reads the position; every existing account keeps the role it has.
+ */
+export const USER_ROLES = [
+  "super_admin",
+  "admin",
+  "manager",
+  "team_leader",
+  "employee",
+  "user",
+];
+
+/** The two roles that use the team leader's panel. */
+export const LEADER_ROLES = ["manager", "team_leader"];
 
 export const ADMIN_ROLES = ["super_admin", "admin"];
 

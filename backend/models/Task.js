@@ -7,6 +7,15 @@ const taskSchema = new mongoose.Schema(
     title: { type: String, required: [true, "Title is required"], trim: true },
     description: { type: String, trim: true, default: "" },
     project: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
+    /**
+     * The team this belongs to, for work that is not attached to a project.
+     *
+     * Hiring somebody, chasing a payment and writing a proposal are all real
+     * work with a real owner and a real due date, and none of them belong to a
+     * client project — which is why every task used to need one and HR and
+     * Sales therefore kept their work somewhere else.
+     */
+    team: { type: mongoose.Schema.Types.ObjectId, ref: "Team" },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     status: { type: String, enum: TASK_STATUS, default: "pending" },

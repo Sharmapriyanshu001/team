@@ -25,6 +25,8 @@ export const PERMISSION_MODULES = [
   "ads",
   // The studio's own apps and sites — what they earn, cost, and owe partners
   "portfolio",
+  // Departments, who is on them, and the numbers they carry
+  "teams",
   // The credential vault. Its own module because access to it is a decision
   // about trust, not about which part of the business somebody works in.
   "vault",

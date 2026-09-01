@@ -107,6 +107,16 @@ import {
   portfolio,
 } from "../controllers/portfolioController.js";
 import {
+  teams,
+  teamDetail,
+  teamsOverview,
+  listTargets,
+  setTarget,
+  updateTarget,
+  removeTarget,
+  targetMetrics,
+} from "../controllers/teamController.js";
+import {
   listCredentials,
   createCredential,
   updateCredential,
@@ -265,6 +275,8 @@ router.use("/seo", guard("seo"));
 router.use("/crm", guard("crm"));
 router.use("/ads", guard("ads"));
 router.use("/portfolio", guard("portfolio"));
+router.use("/teams", guard("teams"));
+router.use("/targets", guard("teams"));
 router.use("/vault", guard("vault"));
 router.use("/reports", guard("reports"));
 router.use("/activity-logs", guard("activity_logs"));
@@ -1133,3 +1145,26 @@ router.post("/portfolio/properties/:id/partners/:partnerId/pay", payPartner);
 router.get("/portfolio/properties/:id", properties.getOne);
 router.put("/portfolio/properties/:id", properties.update);
 router.delete("/portfolio/properties/:id", properties.remove);
+
+/* -------------------------------------------------------- teams & targets */
+
+/**
+ * One module covering both. A department and the numbers it carries are the
+ * same conversation — a role that could see who is on Sales but not what Sales
+ * is meant to bring in would be a role nobody wants.
+ */
+
+router.get("/teams/overview", teamsOverview);
+router.get("/teams/metrics", targetMetrics);
+
+router.get("/teams", teams.list);
+router.post("/teams", teams.create);
+router.get("/teams/:id/detail", teamDetail);
+router.get("/teams/:id", teams.getOne);
+router.put("/teams/:id", teams.update);
+router.delete("/teams/:id", teams.remove);
+
+router.get("/targets", listTargets);
+router.post("/targets", setTarget);
+router.put("/targets/:id", updateTarget);
+router.delete("/targets/:id", removeTarget);

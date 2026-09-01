@@ -3,6 +3,7 @@ import {
   Users,
   UserCog,
   UsersRound,
+  Network,
   FolderKanban,
   ListChecks,
   MessagesSquare,
@@ -38,6 +39,7 @@ const MODULE_BY_PATH = [
   ["/admin/crm", "crm"],
   ["/admin/ads", "ads"],
   ["/admin/portfolio", "portfolio"],
+  ["/admin/teams", "teams"],
   ["/admin/vault", "vault"],
   ["/admin/code-share", "code"],
   ["/admin/activity-logs", "activity_logs"],
@@ -97,6 +99,8 @@ export const NAV_ITEMS = [
       { label: "Meetings", to: "/admin/clients/meetings" },
     ],
   },
+  // The company's own shape: departments, who runs them, and their numbers
+  { label: "Teams & Targets", to: "/admin/teams", icon: Network },
   {
     label: "Team Leaders",
     icon: UserCog,

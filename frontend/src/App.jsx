@@ -73,6 +73,11 @@ import LeaderPlayAppDetail from "./leader/pages/PlayAppDetail";
 import EmpPlayApps from "./employee/pages/PlayApps";
 import EmpPlayAppDetail from "./employee/pages/PlayAppDetail";
 
+import AdminTeams from "./admin/pages/teams/Teams";
+import AdminTeamDetail from "./admin/pages/teams/TeamDetail";
+import LeaderMyTeam from "./leader/pages/MyTeamPage";
+import EmpMyTeam from "./employee/pages/MyTeamPage";
+
 import AdminPortfolio from "./admin/pages/portfolio/Portfolio";
 import AdminPropertyDetail from "./admin/pages/portfolio/PropertyDetail";
 
@@ -272,6 +277,9 @@ export default function App() {
         <Route path="code-share" element={<AdminCodeShare />} />
         <Route path="code-projects" element={<AdminCodeProjects />} />
         <Route path="code-projects/requests" element={<AdminCodeRequests />} />
+        <Route path="teams" element={<AdminTeams />} />
+        <Route path="teams/:id" element={<AdminTeamDetail />} />
+
         <Route path="portfolio" element={<AdminPortfolio />} />
         <Route path="portfolio/:id" element={<AdminPropertyDetail />} />
 
@@ -360,6 +368,7 @@ export default function App() {
         <Route path="issues" element={<LeaderIssues />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="seo" element={<LeaderSeoWork />} />
+        <Route path="my-team" element={<LeaderMyTeam />} />
         <Route path="ads" element={<LeaderAdsWork />} />
         <Route path="ads/:id" element={<LeaderAdAccount />} />
         <Route path="vault" element={<LeaderVault />} />
@@ -425,6 +434,7 @@ export default function App() {
         <Route path="issues" element={<EmpIssues />} />
         <Route path="calendar" element={<EmpCalendar />} />
         <Route path="seo" element={<EmpSeoWork />} />
+        <Route path="my-team" element={<EmpMyTeam />} />
         <Route path="ads" element={<EmpAdsWork />} />
         <Route path="ads/:id" element={<EmpAdAccount />} />
         <Route path="vault" element={<EmpVault />} />
