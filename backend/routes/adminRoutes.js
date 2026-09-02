@@ -258,6 +258,7 @@ router.use("/clients", guard("clients"));
 // than introducing a module every existing role would be missing
 router.use("/meetings", guard("clients"));
 router.use("/team-leaders", guard("team_leaders"));
+router.use("/managers", guard("team_leaders"));
 router.use("/employees", guard("employees"));
 router.use("/attendance", guard("employees"));
 router.use("/projects", guard("projects"));
@@ -335,11 +336,17 @@ const resolveLoginPassword = (payload, existing, label) => {
   return null;
 };
 
+const STAFF_LABELS = {
+  manager: { label: "manager", entity: "Manager" },
+  team_leader: { label: "team leader", entity: "Team Leader" },
+  employee: { label: "employee", entity: "Employee" },
+};
+
 const staffCrudOptions = (role) => {
-  const label = role === "team_leader" ? "team leader" : "employee";
+  const { label, entity } = STAFF_LABELS[role] || STAFF_LABELS.employee;
 
   return {
-    entity: role === "team_leader" ? "Team Leader" : "Employee",
+    entity,
     searchFields: ["name", "email", "designation", "department", "phone"],
     filterFields: ["status", "department"],
     scope: { role },
@@ -512,6 +519,32 @@ router.put(
 );
 
 router.delete("/team-leaders/:id", removeStaff("team_leader", teamLeaders));
+
+/* -------------------------------------------------------------- managers */
+
+/**
+ * Department heads. The same record and the same form as a team leader —
+ * what differs is what they answer for, not what is on file about them.
+ *
+ * Guarded by the team_leaders module rather than one of its own: both are
+ * senior staff, and a role allowed to manage one and not the other would be a
+ * distinction nobody asked for.
+ *
+ * A manager can also be created the other way round, by being made manager of
+ * a team, which promotes whatever account they already had — see
+ * teamController. This is the path for hiring one directly.
+ */
+const managers = buildCrud(User, staffCrudOptions("manager"));
+
+router.get("/managers", managers.list);
+router.post("/managers", uploadStaffDocuments, discardUploadsIfRefused, managers.create);
+
+router.get("/managers/:id/details", staffDetails("manager"));
+router.get("/managers/:id/documents/:field", staffDocument("manager"));
+router.get("/managers/:id", managers.getOne);
+
+router.put("/managers/:id", uploadStaffDocuments, discardUploadsIfRefused, managers.update);
+router.delete("/managers/:id", removeStaff("manager", managers));
 
 /* ------------------------------------------------------------- employees */
 
@@ -933,8 +966,15 @@ router.put("/profile/password", changePassword);
 
 router.get("/lookups", async (req, res) => {
   try {
-    const [clientList, leaderList, employeeList, projectList] = await Promise.all([
+    const [clientList, managerList, leaderList, employeeList, projectList] = await Promise.all([
       Client.find().select("name company").sort({ name: 1 }),
+      /**
+       * Managers belong in `staff` too. Leaving them out was a real hole: the
+       * moment somebody was made a department head their role changed, and
+       * they vanished from every dropdown in the panel — no longer assignable
+       * to a task, a lead, or another team.
+       */
+      User.find({ role: "manager" }).select("name designation").sort({ name: 1 }),
       User.find({ role: "team_leader" }).select("name designation").sort({ name: 1 }),
       // reportsTo lets the Assign Team screen flag members who sit under a
       // different leader — that leader could not give them work.
@@ -953,10 +993,11 @@ router.get("/lookups", async (req, res) => {
 
     return res.status(200).json({
       clients: clientList,
+      managers: managerList,
       teamLeaders: leaderList,
       employees: employeeList,
       projects: projectList,
-      staff: [...leaderList, ...employeeList],
+      staff: [...managerList, ...leaderList, ...employeeList],
     });
   } catch (err) {
     console.error("lookups error:", err);

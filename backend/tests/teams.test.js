@@ -304,3 +304,56 @@ describe("work that is not project work", () => {
     assert.equal(task.project, undefined, "and needs no client project to exist");
   });
 });
+
+describe("a manager does not fall through the cracks", () => {
+  /**
+   * The regression this guards against: promoting somebody to manager changes
+   * their role, and every staff list in the panel is scoped by role. Without a
+   * managers list and a managers entry in the lookups, a new department head
+   * would disappear from the panel the moment they were made one.
+   */
+  test("a promoted manager turns up in the managers list", async () => {
+    const res = await api.get("/api/admin/managers", T());
+    assert.equal(res.status, 200);
+    assert.ok(
+      res.body.items.some((row) => row.name === "Sales Head"),
+      "the account promoted by being made a team's manager"
+    );
+  });
+
+  test("and is still offered in every dropdown in the panel", async () => {
+    const res = await api.get("/api/admin/lookups", T());
+    assert.equal(res.status, 200);
+
+    assert.ok(
+      res.body.staff.some((person) => person.name === "Sales Head"),
+      "a promoted manager must stay assignable — to a task, a lead, another team"
+    );
+    assert.ok(res.body.managers.some((person) => person.name === "Sales Head"));
+  });
+
+  test("the managers list holds only managers", async () => {
+    const res = await api.get("/api/admin/managers", T());
+    const roles = new Set(res.body.items.map((row) => row.role));
+    assert.deepEqual([...roles], ["manager"]);
+  });
+
+  test("hiring one directly asks for the same paperwork as any other staff", async () => {
+    const res = await api.post(
+      "/api/admin/managers",
+      { name: "Ops Head", email: "opshead@example.com", phone: "9812345678" },
+      T()
+    );
+
+    assert.equal(res.status, 400, "no Aadhaar, no account — the same rule team leaders follow");
+    assert.match(res.body.message, /Aadhaar/i);
+  });
+
+  test("a team leader is not shown in the managers list", async () => {
+    const res = await api.get("/api/admin/managers", T());
+    assert.ok(!res.body.items.some((row) => row.name === "Developer"));
+
+    const leaders = await api.get("/api/admin/team-leaders", T());
+    assert.ok(leaders.body.items.some((row) => row.name === "Developer"));
+  });
+});

@@ -17,7 +17,7 @@ const initialsOf = (name = "") =>
     .join("")
     .toUpperCase();
 
-/** Shared list screen for "All Team Leaders" and "All Employees". */
+/** Shared list screen for the managers, team leaders and employees lists. */
 export default function StaffList({ resource, title, subtitle, addPath, showTeamLeader }) {
   const navigate = useNavigate();
   const crud = useCrud(resource);
@@ -26,7 +26,8 @@ export default function StaffList({ resource, title, subtitle, addPath, showTeam
   // Row that is open in the profile drawer
   const [viewing, setViewing] = useState(null);
 
-  const roleLabel = resource === "team-leaders" ? "Team leader" : "Employee";
+  const roleLabel =
+    { managers: "Manager", "team-leaders": "Team leader" }[resource] || "Employee";
 
   const handleDelete = async () => {
     setDeleting(true);

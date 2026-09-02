@@ -33,6 +33,8 @@ import AddClient from "./admin/pages/clients/AddClient";
 import ClientDocuments from "./admin/pages/clients/ClientDocuments";
 import AdminMeetings from "./admin/pages/clients/Meetings";
 
+import AllManagers from "./admin/pages/staff/AllManagers";
+import AddManager from "./admin/pages/staff/AddManager";
 import AllTeamLeaders from "./admin/pages/staff/AllTeamLeaders";
 import AddTeamLeader from "./admin/pages/staff/AddTeamLeader";
 import TeamLeaderPerformance from "./admin/pages/staff/TeamLeaderPerformance";
@@ -246,6 +248,9 @@ export default function App() {
         <Route path="clients/add" element={<AddClient />} />
         <Route path="clients/documents" element={<ClientDocuments />} />
         <Route path="clients/meetings" element={<AdminMeetings />} />
+
+        <Route path="managers" element={<AllManagers />} />
+        <Route path="managers/add" element={<AddManager />} />
 
         <Route path="team-leaders" element={<AllTeamLeaders />} />
         <Route path="team-leaders/add" element={<AddTeamLeader />} />

@@ -44,6 +44,7 @@ const MODULE_BY_PATH = [
   ["/admin/code-share", "code"],
   ["/admin/activity-logs", "activity_logs"],
   ["/admin/team-leaders", "team_leaders"],
+  ["/admin/managers", "team_leaders"],
   ["/admin/dashboard", "dashboard"],
   ["/admin/insights", "dashboard"],
   ["/admin/employees", "employees"],
@@ -101,6 +102,15 @@ export const NAV_ITEMS = [
   },
   // The company's own shape: departments, who runs them, and their numbers
   { label: "Teams & Targets", to: "/admin/teams", icon: Network },
+  {
+    label: "Managers",
+    icon: UserCog,
+    key: "managers",
+    children: [
+      { label: "All Managers", to: "/admin/managers" },
+      { label: "Add Manager", to: "/admin/managers/add" },
+    ],
+  },
   {
     label: "Team Leaders",
     icon: UserCog,
