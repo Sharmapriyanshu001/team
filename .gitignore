@@ -1,33 +1,27 @@
-# ---------------------------------------------------------------- secrets
-# Never commit real credentials. .env.example carries the shape instead.
+# Dependencies
+node_modules/
+
+# Environment / secrets
 .env
 .env.*
 !.env.example
 
-# ------------------------------------------------------------ dependencies
-node_modules/
-
-# ----------------------------------------------------------------- builds
+# Build output
 dist/
 build/
 
-# ------------------------------------------------------------- user uploads
-# Uploaded archives and extracted workspaces are project data, not source.
-backend/uploads/*
-!backend/uploads/.gitkeep
-
-# ------------------------------------------------------------------- logs
+# Logs
 *.log
 npm-debug.log*
-logs/
+yarn-debug.log*
+yarn-error.log*
 
-# -------------------------------------------------------- editors and OS
-.vscode/*
-!.vscode/extensions.json
-.idea/
+# OS / editor
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
 
-# ------------------------------------------------------------- scratch work
-# One-off diagnostic scripts follow this prefix so they never land in a commit.
-_*.js
+# Caches
+.cache/
+*.tsbuildinfo
