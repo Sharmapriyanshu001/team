@@ -25,6 +25,7 @@ const TOKEN_KEYS = {
   "/leader": "leaderToken",
   "/employee": "employeeToken",
   "/client": "clientToken",
+  "/sales": "salesToken",
 };
 
 export const tokenKeyForBase = (base) => TOKEN_KEYS[base] || null;

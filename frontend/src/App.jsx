@@ -24,6 +24,7 @@ const WorkspaceFallback = () => (
 
 import AdminRoute from "./admin/AdminRoute";
 import AdminLayout from "./admin/layout/AdminLayout";
+import { UnreadProvider as AdminUnreadProvider } from "./admin/hooks/useUnread";
 
 import AdminDashboard from "./admin/pages/Dashboard";
 
@@ -147,6 +148,7 @@ import InsightDetails from "./admin/pages/InsightDetails";
  */
 import HrRoute from "./hr/HrRoute";
 import HrLayout from "./hr/layout/HrLayout";
+import { UnreadProvider as HrUnreadProvider } from "./hr/hooks/useUnread";
 
 import HrPanelDashboard from "./hr/pages/Dashboard";
 /**
@@ -273,6 +275,7 @@ import EmpProfile from "./employee/pages/Profile";
 
 import SalesRoute from "./sales/SalesRoute";
 import SalesLayout from "./sales/layout/SalesLayout";
+import { UnreadProvider as SalesUnreadProvider } from "./sales/hooks/useUnread";
 
 import SalesDashboard from "./sales/pages/Dashboard";
 import SalesLeads from "./sales/pages/Leads";
@@ -371,7 +374,9 @@ export default function App() {
         path="/admin"
         element={
           <AdminRoute>
-            <AdminLayout />
+            <AdminUnreadProvider>
+              <AdminLayout />
+            </AdminUnreadProvider>
           </AdminRoute>
         }
       >
@@ -523,7 +528,9 @@ export default function App() {
         path="/hr"
         element={
           <HrRoute>
-            <HrLayout />
+            <HrUnreadProvider>
+              <HrLayout />
+            </HrUnreadProvider>
           </HrRoute>
         }
       >
@@ -729,7 +736,9 @@ export default function App() {
         path="/sales"
         element={
           <SalesRoute>
-            <SalesLayout />
+            <SalesUnreadProvider>
+              <SalesLayout />
+            </SalesUnreadProvider>
           </SalesRoute>
         }
       >
