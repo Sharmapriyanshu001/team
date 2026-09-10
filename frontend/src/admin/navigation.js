@@ -152,7 +152,7 @@ export const NAV_ITEMS = [
    */
   { section: "Team & Accounts" },
   {
-    label: "People & Accounts",
+    label: "All Candidates",
     to: "/admin/team",
     icon: UsersRound,
     modules: ["employees", "operations_managers", "department_accounts", "clients"],

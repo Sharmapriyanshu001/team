@@ -7,6 +7,7 @@ import StaffForm from "../staff/StaffForm";
 import AllClients from "../clients/AllClients";
 import AddClient from "../clients/AddClient";
 import DepartmentAccounts from "../DepartmentAccounts";
+import AllPeople from "./AllPeople";
 import { EmptyState, PageHeader, Select } from "../../../shared/components/ui";
 
 /**
@@ -107,6 +108,43 @@ const TYPES = [
 ];
 
 /**
+ * Where the combined view fetches one type from.
+ *
+ * Derived from what the type already says about itself rather than written
+ * down a second time, so a resource that moves has one place to move.
+ */
+const sourceFor = (type) => {
+  let path = "/admin/department-accounts";
+  if (type.staff) path = `/admin/${type.staff.resource}`;
+  else if (type.client) path = "/admin/clients";
+
+  return {
+    value: type.value,
+    label: type.label,
+    path,
+    params: type.department ? { role: type.department } : undefined,
+    /**
+     * Staff and clients open one record on this panel's own URL. The
+     * department logins keep their form in a modal on their own list, so the
+     * most that can be done for one of those is put their list on screen.
+     */
+    routable: Boolean(type.staff || type.client),
+  };
+};
+
+/**
+ * The one choice in the dropdown that is not a kind of person.
+ *
+ * Offered only where there is more than one kind to combine — with a single
+ * type allowed, "All" and that type are the same list under two names.
+ */
+const ALL = {
+  value: "all",
+  label: "All",
+  subtitle: "Everyone with a login — staff, department accounts and clients",
+};
+
+/**
  * The screens this panel does not contain.
  *
  * Performance, the handover queue, the document register and the meetings
@@ -150,8 +188,14 @@ export default function TeamAccounts() {
     (type) => (!type.adminOnly || isFullAdmin) && can(type.module, "view")
   );
 
+  const choices = allowed.length > 1 ? [ALL, ...allowed] : allowed;
+
+  /**
+   * Employee stays the default rather than All: it is what this screen has
+   * always opened on, and every link and bookmark made since assumes it.
+   */
   const requested = params.get("type");
-  const type = allowed.find((item) => item.value === requested) || allowed[0];
+  const type = choices.find((item) => item.value === requested) || allowed[0];
 
   /**
    * Switching type starts that type clean — the form flag and any record id
@@ -188,6 +232,19 @@ export default function TeamAccounts() {
   }
 
   const renderBody = () => {
+    if (type.value === ALL.value) {
+      return (
+        <AllPeople
+          sources={allowed.map(sourceFor)}
+          hrefFor={(row) =>
+            row.source.routable
+              ? `/admin/team?type=${row.source.value}&id=${row._id}`
+              : `/admin/team?type=${row.source.value}`
+          }
+        />
+      );
+    }
+
     if (type.staff) {
       return showForm ? (
         <StaffForm
@@ -234,7 +291,7 @@ export default function TeamAccounts() {
           <Select
             value={type.value}
             onChange={(e) => chooseType(e.target.value)}
-            options={allowed.map((item) => ({ value: item.value, label: item.label }))}
+            options={choices.map((item) => ({ value: item.value, label: item.label }))}
             aria-label="Which kind of person to manage"
             className="w-auto min-w-[190px] font-medium"
           />
