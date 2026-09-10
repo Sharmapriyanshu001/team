@@ -33,6 +33,10 @@ import { EmptyState, PageHeader, Select } from "../../../shared/components/ui";
  * The type lives in the URL rather than in state, so a particular list can be
  * linked to, bookmarked and reached with the back button — "?type=client" is
  * as good an address as /admin/clients ever was.
+ *
+ * Managers are the one of the six not offered here. The screen was not
+ * deleted with the choice — /admin/managers still answers, and still adds and
+ * edits them — it is simply not a kind of person this panel asks about.
  */
 
 /**
@@ -61,13 +65,6 @@ const TYPES = [
       { label: "Performance", to: "/admin/employees/performance" },
       { label: "Attendance", to: "/admin/employees/attendance" },
     ],
-  },
-  {
-    value: "manager",
-    label: "Manager",
-    module: "operations_managers",
-    subtitle: "Department heads — they answer for a team's numbers and sign in at the operations manager panel",
-    staff: { resource: "managers", title: "Manager" },
   },
   {
     value: "operation-manager",
@@ -129,6 +126,20 @@ const sourceFor = (type) => {
      * most that can be done for one of those is put their list on screen.
      */
     routable: Boolean(type.staff || type.client),
+    /**
+     * Which profile drawer View opens, and what to fetch for it.
+     *
+     * Staff and clients read through two different screens — the tabbed staff
+     * profile and the client one — and a row here opens the same drawer its
+     * own list opens rather than a third rendering of the same record. A Sales
+     * or HR login has no /details endpoint behind it at all, so those rows
+     * offer no View instead of an eye that leads nowhere.
+     */
+    detail: type.staff
+      ? { kind: "staff", resource: type.staff.resource }
+      : type.client
+        ? { kind: "client", resource: "clients" }
+        : null,
   };
 };
 
@@ -189,13 +200,16 @@ export default function TeamAccounts() {
   );
 
   const choices = allowed.length > 1 ? [ALL, ...allowed] : allowed;
+  const addable = allowed.find((item) => item.staff || item.client);
 
   /**
-   * Employee stays the default rather than All: it is what this screen has
-   * always opened on, and every link and bookmark made since assumes it.
+   * All is what the screen opens on: somebody arriving here is usually looking
+   * for a person rather than for a category, and having to guess which list
+   * holds them is the step this view exists to remove. A named type in the URL
+   * still wins, so every existing link keeps landing where it always did.
    */
   const requested = params.get("type");
-  const type = choices.find((item) => item.value === requested) || allowed[0];
+  const type = choices.find((item) => item.value === requested) || choices[0];
 
   /**
    * Switching type starts that type clean — the form flag and any record id
@@ -236,6 +250,17 @@ export default function TeamAccounts() {
       return (
         <AllPeople
           sources={allowed.map(sourceFor)}
+          /**
+           * Add, on the one view looking at every kind at once.
+           *
+           * It opens the first kind this account may add, which is Employee
+           * wherever employees are allowed at all — far and away what this
+           * panel is used to add, and the type dropdown is right there for the
+           * rest. The Sales and HR logins are not candidates for it: their
+           * form is a modal on their own list rather than a URL, so Add would
+           * have landed on a list instead of a form.
+           */
+          addPath={addable ? `/admin/team?type=${addable.value}&form=new` : ""}
           hrefFor={(row) =>
             row.source.routable
               ? `/admin/team?type=${row.source.value}&id=${row._id}`

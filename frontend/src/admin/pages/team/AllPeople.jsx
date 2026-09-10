@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Mail, Pencil, Phone } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Eye, Mail, Pencil, Phone, Plus, Trash2 } from "lucide-react";
 
 import adminApi from "../../adminApi";
+import ProfileDetail from "../../components/ProfileDetail";
+import StaffDetail from "../../../shared/staff/StaffDetail";
 import Avatar from "../../../shared/components/Avatar";
 import DataTable from "../../../shared/components/DataTable";
 import Toolbar from "../../../shared/components/Toolbar";
-import { Alert, Badge, Card } from "../../../shared/components/ui";
+import { ConfirmDialog } from "../../../shared/components/Modal";
+import { Alert, Badge, Button, Card } from "../../../shared/components/ui";
 
 /**
  * Everybody with a login, in one table.
@@ -69,7 +72,20 @@ const fetchAll = async (source) => {
  */
 const subtitleOf = (row) => row.designation || row.company || "";
 
-export default function AllPeople({ sources, hrefFor }) {
+/**
+ * The kind of person, and for staff the department they are in.
+ *
+ * A merged list is read type-first — "which of these are employees" — and the
+ * answer to that is very often followed by "in which team". The Department
+ * column already carries it, but the two questions were a column apart, so
+ * scanning for one department meant reading across every row. Clients and the
+ * department logins carry no department of their own and read as they did.
+ */
+const typeLabelOf = (row) =>
+  row.department ? `${row.source.label} (${row.department})` : row.source.label;
+
+export default function AllPeople({ sources, hrefFor, addPath = "" }) {
+  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -79,6 +95,48 @@ export default function AllPeople({ sources, hrefFor }) {
   const [type, setType] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
+
+  // The row open in the profile drawer, and the one waiting on a confirmation
+  const [viewing, setViewing] = useState(null);
+  const [target, setTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  /**
+   * Which of the two drawers the open row belongs to.
+   *
+   * Staff read through the tabbed profile and clients through their own, so
+   * the row decides which one opens rather than this screen inventing a third.
+   */
+  const staffView = viewing?.source.detail?.kind === "staff" ? viewing : null;
+  const clientView = viewing?.source.detail?.kind === "client" ? viewing : null;
+
+  /**
+   * The full staff record, fetched only once somebody opens one.
+   *
+   * The client drawer fetches its own; the staff one is a presenter and is
+   * handed its data, exactly as the employees list hands it over — so one kind
+   * of record still has one screen behind it.
+   */
+  const [details, setDetails] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  useEffect(() => {
+    if (!staffView) return undefined;
+
+    let active = true;
+    setDetailLoading(true);
+    setDetails(null);
+
+    adminApi
+      .get(`/admin/${staffView.source.detail.resource}/${staffView._id}/details`)
+      .then(({ data }) => active && setDetails(data))
+      .catch(() => active && setDetails(null))
+      .finally(() => active && setDetailLoading(false));
+
+    return () => {
+      active = false;
+    };
+  }, [staffView]);
 
   /**
    * The array itself is rebuilt every time the panel above renders. What
@@ -161,17 +219,72 @@ export default function AllPeople({ sources, hrefFor }) {
     if (field === "status") setStatus(value);
   };
 
-  /** Opens whichever screen actually owns this record. */
-  const EditLink = ({ row }) => (
-    <Link
-      to={hrefFor(row)}
-      title={`Open ${row.name}`}
-      aria-label={`Open ${row.name}`}
-      onClick={(e) => e.stopPropagation()}
-      className="inline-flex rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-    >
-      <Pencil size={15} />
-    </Link>
+  /**
+   * Deleting off the merged list.
+   *
+   * Every row remembers the list it came from, so this deletes against that
+   * list's own endpoint — there is no combined one to delete from. The row is
+   * dropped from the rows in hand rather than refetching all of them for one
+   * removal, and the tiles above count that same array, so they follow.
+   */
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await adminApi.delete(`${target.source.path}/${target._id}`);
+      setRows((current) =>
+        current.filter(
+          (row) => row._id !== target._id || row.source.value !== target.source.value
+        )
+      );
+      setTarget(null);
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not delete this record");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  /**
+   * The same three actions the single-type lists carry, on the merged one.
+   *
+   * View is the one that is not always there: it opens a record's own profile,
+   * and a Sales or HR login has no profile endpoint behind it. Those rows show
+   * Edit and Delete rather than an eye that would lead nowhere.
+   *
+   * Edit stays a Link because it navigates — it opens whichever screen owns
+   * the record, which is the whole reason a row remembers its source.
+   */
+  const RowActions = ({ row }) => (
+    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+      {row.source.detail && (
+        <button
+          type="button"
+          onClick={() => setViewing(row)}
+          title="View full details"
+          aria-label={`View ${row.name}`}
+          className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+        >
+          <Eye size={15} />
+        </button>
+      )}
+      <Link
+        to={hrefFor(row)}
+        title="Edit"
+        aria-label={`Edit ${row.name}`}
+        className="inline-flex rounded-md p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+      >
+        <Pencil size={15} />
+      </Link>
+      <button
+        type="button"
+        onClick={() => setTarget(row)}
+        title="Delete"
+        aria-label={`Delete ${row.name}`}
+        className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+      >
+        <Trash2 size={15} />
+      </button>
+    </div>
   );
 
   const columns = [
@@ -191,7 +304,7 @@ export default function AllPeople({ sources, hrefFor }) {
     {
       key: "type",
       header: "Type",
-      render: (row) => <Badge tone="sky">{row.source.label}</Badge>,
+      render: (row) => <Badge tone="sky">{typeLabelOf(row)}</Badge>,
     },
     {
       key: "email",
@@ -238,7 +351,7 @@ export default function AllPeople({ sources, hrefFor }) {
       className: "text-right",
       render: (row) => (
         <div className="flex justify-end">
-          <EditLink row={row} />
+          <RowActions row={row} />
         </div>
       ),
     },
@@ -278,12 +391,11 @@ export default function AllPeople({ sources, hrefFor }) {
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Badge tone="sky">{row.source.label}</Badge>
-          {row.department && <Badge tone="slate">{row.department}</Badge>}
+          <Badge tone="sky">{typeLabelOf(row)}</Badge>
         </div>
 
         <div className="mt-2 -ml-1.5">
-          <EditLink row={row} />
+          <RowActions row={row} />
         </div>
       </div>
     </div>
@@ -346,7 +458,17 @@ export default function AllPeople({ sources, hrefFor }) {
               options: ["active", "inactive"],
             },
           ]}
-        />
+        >
+          {/* The same Add button every other list on this panel carries */}
+          {addPath && (
+            <Link to={addPath} className="ml-auto">
+              <Button size="sm">
+                <Plus size={15} />
+                Add candidate
+              </Button>
+            </Link>
+          )}
+        </Toolbar>
         <DataTable
           columns={columns}
           rows={visible}
@@ -364,6 +486,47 @@ export default function AllPeople({ sources, hrefFor }) {
           }
         />
       </Card>
+
+      {/**
+        * Both drawers, each opening for the rows it owns — the same two screens
+        * the single-type lists open, so a person opened from All reads exactly
+        * as they read from their own list.
+        */}
+      <StaffDetail
+        open={Boolean(staffView)}
+        onClose={() => setViewing(null)}
+        data={details}
+        loading={detailLoading}
+        api={adminApi}
+        basePath="/admin"
+        chatPath={
+          /**
+           * Only employees have a chat room in this panel, and the room id is
+           * the person's own id.
+           */
+          staffView?.source.detail.resource === "employees"
+            ? `/admin/chat/employees?room=${staffView._id}`
+            : undefined
+        }
+      />
+
+      <ProfileDetail
+        open={Boolean(clientView)}
+        resource={clientView?.source.detail.resource}
+        id={clientView?._id}
+        roleLabel={clientView?.source.label}
+        onClose={() => setViewing(null)}
+        onEdit={() => clientView && navigate(hrefFor(clientView))}
+      />
+
+      <ConfirmDialog
+        open={Boolean(target)}
+        title="Delete record"
+        message={`Delete "${target?.name}"? Their login goes with them, and this cannot be undone.`}
+        loading={deleting}
+        onConfirm={handleDelete}
+        onClose={() => setTarget(null)}
+      />
     </div>
   );
 }
