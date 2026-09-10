@@ -11,9 +11,11 @@ import {
 } from "lucide-react";
 
 import { prettify } from "../format";
+import useLiveNotifications from "../hooks/useLiveNotifications";
 import { Alert, Button, Card, EmptyState, Loader, PageHeader, Select } from "./ui";
 
 const TYPE_ICONS = {
+  general: Bell,
   project: FolderKanban,
   task: ListChecks,
   review: ClipboardCheck,
@@ -22,7 +24,7 @@ const TYPE_ICONS = {
   system: Bell,
 };
 
-const TYPES = ["project", "task", "review", "issue", "chat", "system"];
+const TYPES = ["general", "project", "task", "review", "issue", "chat", "system"];
 
 const timeAgo = (value) => {
   const diff = Math.floor((Date.now() - new Date(value)) / 1000);
@@ -70,6 +72,19 @@ export default function NotificationsPanel({ api, base, onRead }) {
     setLoading(true);
     setReloadKey((key) => key + 1);
   };
+
+  /**
+   * A notification pushed while this page is open refreshes it in place.
+   *
+   * Deliberately re-fetches rather than prepending the row it was handed: the
+   * list is filtered by read state and type, and a new arrival does not always
+   * belong in the view somebody is currently looking at. Re-asking keeps the
+   * filter honest.
+   *
+   * No spinner — the list is already on screen and flashing it to a loader on
+   * every arrival is worse than the second of staleness it saves.
+   */
+  useLiveNotifications(base, () => setReloadKey((key) => key + 1));
 
   const changeFilter = (value) => {
     setLoading(true);

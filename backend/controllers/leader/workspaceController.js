@@ -486,14 +486,21 @@ export const getReports = async (req, res) => {
 // GET /api/leader/lookups — dropdown options limited to the leader's scope
 export const getLookups = async (req, res) => {
   try {
-    const { projectIds, teamIds } = await getScope(req);
+    const { projectIds, teamIds, managedTeams } = await getScope(req);
 
     const [projects, team] = await Promise.all([
       Project.find({ _id: { $in: projectIds } }).select("name code").sort({ name: 1 }),
-      User.find({ _id: { $in: teamIds } }).select("name designation").sort({ name: 1 }),
+      // The role goes out too, so a screen can say what somebody is rather
+      // than assume everybody on a department is an employee
+      User.find({ _id: { $in: teamIds } }).select("name designation role").sort({ name: 1 }),
     ]);
 
-    return res.status(200).json({ projects, team });
+    /**
+     * The departments this account runs, for work that belongs to the team
+     * rather than to a client project. Empty for an operations manager who manages
+     * none, which is what makes the option disappear for them.
+     */
+    return res.status(200).json({ projects, team, departments: managedTeams });
   } catch (err) {
     console.error("leader getLookups error:", err);
     return res.status(500).json({ message: "Server error" });

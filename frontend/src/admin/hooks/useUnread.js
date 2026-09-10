@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import adminApi from "../adminApi";
+import useLiveNotifications from "../../shared/hooks/useLiveNotifications";
 
 /**
  * How many notifications are waiting for this admin.
@@ -29,9 +30,14 @@ export default function useUnread() {
 
   useEffect(() => {
     refresh();
+    // The poll stays as the safety net behind the live push below: a dropped
+    // socket should leave the count a minute stale, never permanently wrong.
     const timer = setInterval(refresh, 60000);
     return () => clearInterval(timer);
   }, [refresh]);
+
+  /** A notification pushed to this account updates the bell at once. */
+  useLiveNotifications("/admin", refresh);
 
   return { unread, refresh };
 }

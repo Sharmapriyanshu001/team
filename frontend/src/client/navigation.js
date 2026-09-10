@@ -5,6 +5,7 @@ import {
   FolderOpen,
   MessagesSquare,
   Star,
+  MessageSquarePlus,
   CalendarClock,
   Bell,
   User,
@@ -13,7 +14,7 @@ import {
 
 /**
  * Sidebar for the client portal.
- * The Team Leader and Employees chat tabs only appear when the admin has
+ * The Operations Manager and Employees chat tabs only appear when the admin has
  * switched them on in Settings.
  */
 export const buildNavItems = ({
@@ -34,10 +35,14 @@ export const buildNavItems = ({
     key: "chat",
     children: [
       { label: "Admin", to: "/client/chat/admin" },
-      ...(leaderChatEnabled ? [{ label: "Team Leader", to: "/client/chat/team-leader" }] : []),
+      ...(leaderChatEnabled ? [{ label: "Operations Manager", to: "/client/chat/operation-manager" }] : []),
       ...(employeeChatEnabled ? [{ label: "Employees", to: "/client/chat/employees" }] : []),
     ],
   },
+
+  // Ask for a change, and follow what happens to it. Above Feedback because
+  // a request is something you are waiting on; feedback is something you leave.
+  { label: "Change Requests", to: "/client/requests", icon: MessageSquarePlus },
 
   { label: "Feedback", to: "/client/feedback", icon: Star },
   { label: "Meetings", to: "/client/meetings", icon: CalendarClock },

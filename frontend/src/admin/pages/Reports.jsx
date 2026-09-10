@@ -97,11 +97,11 @@ export default function Reports() {
   const exportCsv = () => {
     if (!data) return;
 
-    const header = ["Project", "Client", "Team leader", "Status", "Progress", "Budget", "Start", "End"];
+    const header = ["Project", "Client", "Operations Manager", "Status", "Progress", "Budget", "Start", "End"];
     const rows = data.projects.map((p) => [
       p.name,
       p.client?.company || p.client?.name || "",
-      p.teamLeader?.name || "",
+      p.operationsManager?.name || "",
       prettify(p.status),
       `${p.progress}%`,
       p.budget,
@@ -135,7 +135,7 @@ export default function Reports() {
       header: "Client",
       render: (row) => row.client?.company || row.client?.name || "—",
     },
-    { key: "teamLeader", header: "Leader", render: (row) => row.teamLeader?.name || "—" },
+    { key: "operationsManager", header: "Leader", render: (row) => row.operationsManager?.name || "—" },
     { key: "status", header: "Status", render: (row) => <Badge value={row.status} /> },
     { key: "progress", header: "Progress", render: (row) => `${row.progress}%` },
     { key: "budget", header: "Budget", render: (row) => money(row.budget) },
@@ -183,7 +183,7 @@ export default function Reports() {
               { label: "Tasks", value: data.summary.tasks },
               { label: "Issues", value: data.summary.issues },
             ].map((tile) => (
-              <Card key={tile.label} className="p-4">
+              <Card key={tile.label} className="px-4 py-3">
                 <p className="text-xs font-medium text-slate-500">{tile.label}</p>
                 <p className="mt-1 text-xl font-bold text-slate-900">{tile.value}</p>
               </Card>

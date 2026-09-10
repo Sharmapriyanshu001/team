@@ -173,11 +173,11 @@ export default function Settings() {
         <Card>
           <CardHeader
             title="Staff panels"
-            subtitle="What team leaders and employees can reach from their own logins"
+            subtitle="What operations managers and employees can reach from their own logins"
           />
           <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2">
             <Toggle
-              label="Client chat for team leaders"
+              label="Client chat for operations managers"
               hint="Adds a Client tab to the leader's Chat section for clients on their projects"
               checked={form.leaderClientChat}
               onChange={(e) =>

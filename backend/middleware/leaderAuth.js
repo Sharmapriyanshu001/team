@@ -1,9 +1,9 @@
 import jwt from "jsonwebtoken";
 import User, { LEADER_ROLES } from "../models/User.js";
 import Project from "../models/Project.js";
-import Team from "../models/Team.js";
+import Team, { ACTIVE_TEAM } from "../models/Team.js";
 
-// Verify the bearer token and make sure the account is a team leader.
+// Verify the bearer token and make sure the account is an operations manager.
 const leaderAuth = async (req, res, next) => {
   try {
     const header = req.headers.authorization || "";
@@ -17,7 +17,7 @@ const leaderAuth = async (req, res, next) => {
     const user = await User.findById(decoded.id).select("-password");
 
     if (!user || !LEADER_ROLES.includes(user.role)) {
-      return res.status(403).json({ message: "Team leader access only", code: "AUTH" });
+      return res.status(403).json({ message: "Operations Manager access only", code: "AUTH" });
     }
     if (user.status !== "active") {
       return res.status(403).json({ message: "This account is inactive", code: "AUTH" });
@@ -50,7 +50,7 @@ const leaderAuth = async (req, res, next) => {
 /**
  * What this account can see.
  *
- * A team leader sees the projects they lead and the people who report to them,
+ * An operations manager sees the projects they lead and the people who report to them,
  * which is unchanged. A manager sees the same for every team they run — their
  * department, not one project — so a Sales manager reaches all five
  * executives without being made to lead each of them individually.
@@ -58,22 +58,34 @@ const leaderAuth = async (req, res, next) => {
 export const getScope = async (req) => {
   if (req.scope) return req.scope;
 
-  const isManager = req.leader.role === "manager";
+  /**
+   * The departments this account answers for.
+   *
+   * Asked of the Team records rather than of the role, because the two do not
+   * always agree: an operations manager who was made a team's manager runs that
+   * department in every sense the reporting chain cares about, and the work
+   * they hand out to it has to reach them. Reading only `role === "manager"`
+   * left those people managing a department they could not see.
+   *
+   * ACTIVE_TEAM rather than `active: true` — a team written before the field
+   * existed does not carry it, and this database holds exactly one.
+   */
+  const managedTeams = await Team.find({ manager: req.leader._id, ...ACTIVE_TEAM }).select(
+    "name kind operationsManagers members"
+  );
 
-  const managedTeams = isManager
-    ? await Team.find({ manager: req.leader._id, active: true }).select("teamLeaders members")
-    : [];
+  const isManager = req.leader.role === "manager" || managedTeams.length > 0;
 
   const departmentIds = [
     ...new Set(
       managedTeams.flatMap((team) =>
-        [...(team.teamLeaders || []), ...(team.members || [])].map(String)
+        [...(team.operationsManagers || []), ...(team.members || [])].map(String)
       )
     ),
   ];
 
   const [ledProjects, directReports] = await Promise.all([
-    Project.find({ teamLeader: req.leader._id }).distinct("_id"),
+    Project.find({ operationsManager: req.leader._id }).distinct("_id"),
     User.find({ reportsTo: req.leader._id }).distinct("_id"),
   ]);
 
@@ -88,14 +100,21 @@ export const getScope = async (req) => {
           [
             ...ledProjects.map(String),
             ...(await Project.find({
-              $or: [{ members: { $in: teamIds } }, { teamLeader: { $in: teamIds } }],
+              $or: [{ members: { $in: teamIds } }, { operationsManager: { $in: teamIds } }],
             }).distinct("_id")).map(String),
           ]
         ),
       ]
     : ledProjects;
 
-  req.scope = { projectIds, teamIds, isManager, managedTeamIds: managedTeams.map((t) => t._id) };
+  req.scope = {
+    projectIds,
+    teamIds,
+    isManager,
+    managedTeamIds: managedTeams.map((t) => t._id),
+    // Enough to fill a department dropdown without asking for the teams again
+    managedTeams: managedTeams.map((team) => ({ _id: team._id, name: team.name, kind: team.kind })),
+  };
   return req.scope;
 };
 

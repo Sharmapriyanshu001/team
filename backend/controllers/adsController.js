@@ -212,7 +212,7 @@ export const accounts = buildCrud(AdAccount, {
   filterFields: ["platform", "status", "client", "funding"],
   populate: [
     { path: "client", select: "name company" },
-    { path: "teamLeaders", select: "name email" },
+    { path: "operationsManagers", select: "name email" },
     { path: "employees", select: "name email" },
   ],
   sort: { createdAt: -1 },
@@ -235,10 +235,10 @@ export const accounts = buildCrud(AdAccount, {
       throw new InvalidInput("A management fee of more than 100% of spend is almost certainly a typo");
     }
 
-    if (data.teamLeaders !== undefined || data.employees !== undefined) {
-      const leaders = asIdList(data.teamLeaders ?? existing?.teamLeaders);
+    if (data.operationsManagers !== undefined || data.employees !== undefined) {
+      const leaders = asIdList(data.operationsManagers ?? existing?.operationsManagers);
       const staff = asIdList(data.employees ?? existing?.employees);
-      data.teamLeaders = leaders;
+      data.operationsManagers = leaders;
       data.employees = staff;
       data.assignments = mergeAssignments(existing?.assignments, [...leaders, ...staff], req.admin);
     }
@@ -249,8 +249,8 @@ export const accounts = buildCrud(AdAccount, {
   },
 
   afterSave: (doc, req, { isNew, previous }) => {
-    const before = [...(previous?.teamLeaders || []), ...(previous?.employees || [])];
-    const after = [...(doc.teamLeaders || []), ...(doc.employees || [])];
+    const before = [...(previous?.operationsManagers || []), ...(previous?.employees || [])];
+    const after = [...(doc.operationsManagers || []), ...(doc.employees || [])];
 
     notifyUsers(isNew ? after : newcomers(before, after), {
       type: "assignment",
@@ -266,7 +266,7 @@ export const accountDetail = async (req, res) => {
   try {
     const account = await AdAccount.findById(req.params.id)
       .populate("client", "name company email")
-      .populate("teamLeaders", "name email")
+      .populate("operationsManagers", "name email")
       .populate("employees", "name email")
       .populate("credential", "label type");
 
@@ -874,7 +874,7 @@ export const myAdsWork = async (req, res) => {
     const isLeader = Boolean(req.leader);
 
     const query = isLeader
-      ? { $or: [{ teamLeaders: user._id }, { employees: user._id }] }
+      ? { $or: [{ operationsManagers: user._id }, { employees: user._id }] }
       : { employees: user._id };
 
     const mine = await AdAccount.find(query).populate("client", "name company").sort({ name: 1 });
@@ -913,7 +913,7 @@ export const myAccountDetail = async (req, res) => {
 
     const onIt =
       (account.employees || []).some((id) => String(id) === String(user._id)) ||
-      (account.teamLeaders || []).some((id) => String(id) === String(user._id));
+      (account.operationsManagers || []).some((id) => String(id) === String(user._id));
 
     if (!onIt) return res.status(403).json({ message: "You are not assigned to this ad account" });
 
@@ -960,7 +960,7 @@ export const staffRecordDay = async (req, res) => {
 
   const owning = await AdAccount.findOne({
     _id: campaign.adAccount,
-    $or: [{ employees: user._id }, { teamLeaders: user._id }],
+    $or: [{ employees: user._id }, { operationsManagers: user._id }],
   }).select("_id");
 
   if (!owning) return res.status(403).json({ message: "You are not assigned to this ad account" });

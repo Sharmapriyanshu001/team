@@ -146,7 +146,7 @@ export default function DailyReview() {
           ["In progress", activity.in_progress || 0, STATUS_COLORS.in_progress],
           ["Touched today", Object.values(activity).reduce((a, b) => a + b, 0), CHART.grey],
         ].map(([label, value, color]) => (
-          <Card key={label} className="p-4">
+          <Card key={label} className="px-4 py-3">
             <p className="text-xs font-medium text-slate-500">{label}</p>
             <p className="mt-1 text-xl font-bold text-slate-900">{value}</p>
             <span className="mt-2 block h-1 w-8 rounded-full" style={{ background: color }} />

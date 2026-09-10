@@ -6,6 +6,26 @@ import { ChevronDown, X } from "lucide-react";
 const groupForPath = (items, pathname) =>
   items.find((item) => item.children?.some((child) => pathname.startsWith(child.to)))?.key;
 
+/**
+ * Which link is the deepest match for the current URL.
+ *
+ * NavLink decides its own active state per link, and with nested paths that
+ * lights up two of them at once — /admin/clients stays active while
+ * /admin/clients/meetings is open. Working out the winner here and telling
+ * each link whether it is the one keeps a single entry highlighted.
+ */
+const deepestMatch = (items, pathname) => {
+  const paths = [];
+  items.forEach((item) => {
+    if (item.to) paths.push(item.to);
+    (item.children || []).forEach((child) => child.to && paths.push(child.to));
+  });
+
+  return paths
+    .filter((path) => pathname === path || pathname.startsWith(`${path}/`))
+    .sort((a, b) => b.length - a.length)[0];
+};
+
 /** "Something new is waiting here" — no count, just a mark. */
 const Dot = () => (
   <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-red-500/25" />
@@ -18,6 +38,7 @@ const Dot = () => (
 export default function Sidebar({ items, brand, footer, open, onClose }) {
   const { pathname } = useLocation();
   const activeGroup = groupForPath(items, pathname);
+  const active = deepestMatch(items, pathname);
 
   const [openGroup, setOpenGroup] = useState(activeGroup);
   const [lastActiveGroup, setLastActiveGroup] = useState(activeGroup);
@@ -28,16 +49,18 @@ export default function Sidebar({ items, brand, footer, open, onClose }) {
     if (activeGroup) setOpenGroup(activeGroup);
   }
 
-  const linkClasses = ({ isActive }) =>
+  // `to` rather than NavLink's own isActive, so only the deepest match lights
+  // up when one nav path is a prefix of another
+  const linkClasses = (to) =>
     `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-      isActive
+      to === active
         ? "bg-blue-600 text-white font-medium"
         : "text-slate-400 hover:bg-white/5 hover:text-white"
     }`;
 
-  const childClasses = ({ isActive }) =>
+  const childClasses = (to) =>
     `block rounded-md py-1.5 pl-3 pr-2 text-[13px] transition-colors border-l-2 ${
-      isActive
+      to === active
         ? "border-blue-500 bg-white/5 text-white font-medium"
         : "border-white/10 text-slate-400 hover:border-white/30 hover:text-white"
     }`;
@@ -83,6 +106,26 @@ export default function Sidebar({ items, brand, footer, open, onClose }) {
           {items.map((item) => {
             const Icon = item.icon;
 
+            /**
+             * A heading over the group that follows it. Not a link and not
+             * clickable — twenty-odd entries in one unbroken column is a list
+             * people scan past, and the sections are how somebody finds
+             * "Recruitment" without reading all of it.
+             *
+             * Rendered first so a section never has to carry the fields a
+             * link does. Anything without `section` behaves exactly as before.
+             */
+            if (item.section) {
+              return (
+                <p
+                  key={`section-${item.section}`}
+                  className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-600 first:pt-0"
+                >
+                  {item.section}
+                </p>
+              );
+            }
+
             if (item.action) {
               return (
                 <button
@@ -103,7 +146,7 @@ export default function Sidebar({ items, brand, footer, open, onClose }) {
                   to={item.to}
                   end={item.end}
                   onClick={onClose}
-                  className={linkClasses}
+                  className={linkClasses(item.to)}
                 >
                   <Icon size={17} className="shrink-0" />
                   <span className="flex-1">{item.label}</span>
@@ -147,7 +190,7 @@ export default function Sidebar({ items, brand, footer, open, onClose }) {
                         key={child.to}
                         to={child.to}
                         onClick={onClose}
-                        className={childClasses}
+                        className={childClasses(child.to)}
                       >
                         <span className="flex items-center gap-2">
                           <span className="flex-1">{child.label}</span>

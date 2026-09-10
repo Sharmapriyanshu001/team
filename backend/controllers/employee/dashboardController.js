@@ -62,7 +62,7 @@ export const getDashboard = async (req, res) => {
     ] = await Promise.all([
       Project.find({ _id: { $in: projectIds } })
         .populate("client", "name company")
-        .populate("teamLeader", "name")
+        .populate("operationsManager", "name")
         .sort({ endDate: 1 }),
 
       Task.aggregate([

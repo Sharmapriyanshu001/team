@@ -1,24 +1,42 @@
 import Task from "../../models/Task.js";
 import Project from "../../models/Project.js";
-import User from "../../models/User.js";
+import User, { ADMIN_ROLES } from "../../models/User.js";
 import { assignmentRecord } from "../../utils/projectTeam.js";
 import { getScope } from "../../middleware/leaderAuth.js";
 import { logActivity } from "../../utils/activity.js";
 import { notifyUser } from "../../utils/notify.js";
+import { taskLinkFor } from "../../utils/taskLink.js";
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const POPULATE = [
   { path: "project", select: "name code" },
+  { path: "team", select: "name kind" },
   { path: "assignedTo", select: "name email designation" },
 ];
 
 const withRefs = (query) => POPULATE.reduce((q, p) => q.populate(p), query);
 
-// Deleting or signing off work stays with the projects a leader runs.
+/**
+ * Where a manager's own work lives: their projects, and the departments they
+ * run.
+ *
+ * The second half is what makes a department a department. Hiring somebody,
+ * chasing a payment, writing a proposal — none of it belongs to a client
+ * project, and until a task could be filed against the team itself a Sales
+ * manager had nowhere to put any of the work their department actually does.
+ * `Task.team` already existed for exactly this; nothing was writing it.
+ */
+const ownScope = async (req) => {
+  const { projectIds, managedTeamIds } = await getScope(req);
+  const clauses = [{ project: { $in: projectIds } }];
+  if (managedTeamIds.length) clauses.push({ team: { $in: managedTeamIds } });
+  return clauses;
+};
+
+// Deleting or signing off work stays with what a leader runs.
 const findOwnTask = async (req, id) => {
-  const { projectIds } = await getScope(req);
-  return Task.findOne({ _id: id, project: { $in: projectIds } });
+  return Task.findOne({ _id: id, $or: await ownScope(req) });
 };
 
 /**
@@ -26,10 +44,9 @@ const findOwnTask = async (req, id) => {
  * straight to a leader, and that task may sit outside the projects they run.
  */
 const findVisibleTask = async (req, id) => {
-  const { projectIds } = await getScope(req);
   return Task.findOne({
     _id: id,
-    $or: [{ project: { $in: projectIds } }, { assignedTo: req.leader._id }],
+    $or: [...(await ownScope(req)), { assignedTo: req.leader._id }],
   });
 };
 
@@ -43,24 +60,53 @@ const findVisibleTask = async (req, id) => {
  * direct reports, because work does not fall neatly along the org chart.
  *
  * What that still refuses is everything that is not an employee: another
- * team leader, an admin, a client, a disabled account. Asked of the database
+ * operations manager, an admin, a client, a disabled account. Asked of the database
  * rather than of the payload, so no request shape talks its way past it.
  */
 const validateRefs = async (req, payload) => {
-  const { projectIds } = await getScope(req);
+  const { projectIds, managedTeamIds, teamIds } = await getScope(req);
 
-  if (!payload.project) return "Pick a project for this task";
-  if (!projectIds.some((id) => String(id) === String(payload.project))) {
+  /**
+   * A task belongs to a project or to a department, and needs one of the two.
+   * Neither leaves it floating with no owner and nowhere to appear; both is
+   * allowed, and means project work booked to a department's numbers.
+   */
+  if (!payload.project && !payload.team) {
+    return managedTeamIds.length
+      ? "Pick a project or a department for this task"
+      : "Pick a project for this task";
+  }
+
+  if (payload.project && !projectIds.some((id) => String(id) === String(payload.project))) {
     return "That project is not one of yours";
   }
 
+  if (payload.team && !managedTeamIds.some((id) => String(id) === String(payload.team))) {
+    return "That department is not one of yours";
+  }
+
   if (payload.assignedTo) {
-    const assignable = await User.exists({
-      _id: payload.assignedTo,
-      role: "employee",
-      status: "active",
-    });
-    if (!assignable) return "Work can only be given to an active employee";
+    /**
+     * Who may be given work.
+     *
+     * A project task still goes to an active employee, as it always has. A
+     * department task goes to anybody on the department — which is the point
+     * of having one: a Sales manager's people are sales executives, not
+     * employees, and an operations manager on the team is somebody a manager assigns
+     * to rather than around.
+     *
+     * Both are asked of the database rather than of the payload, and neither
+     * reaches an administrator: the chain runs downwards.
+     */
+    const person = await User.findOne({ _id: payload.assignedTo, status: "active" }).select("role");
+
+    if (!person) return "Work can only be given to an active account";
+    if (ADMIN_ROLES.includes(person.role)) return "Work cannot be assigned upwards";
+
+    const onMyTeam = teamIds.some((id) => String(id) === String(payload.assignedTo));
+    if (person.role !== "employee" && !onMyTeam) {
+      return "Work can only be given to an employee or to somebody on your department";
+    }
   }
 
   return null;
@@ -83,13 +129,14 @@ const validateRefs = async (req, payload) => {
  * are still holding, so it lands on their list twice and neither copy means
  * anything.
  */
-const alreadyHasTask = async ({ project, assignedTo, title, exclude }) => {
+const alreadyHasTask = async ({ project, team, assignedTo, title, exclude }) => {
   const clean = String(title || "").trim();
-  if (!project || !assignedTo || !clean) return null;
+  // Department work is checked the same way, against the team it sits on
+  if ((!project && !team) || !assignedTo || !clean) return null;
 
   return Task.findOne({
     ...(exclude ? { _id: { $ne: exclude } } : {}),
-    project,
+    ...(project ? { project } : { team, project: null }),
     assignedTo,
     title: new RegExp(`^${escapeRegex(clean)}$`, "i"),
     status: { $ne: "completed" },
@@ -105,7 +152,7 @@ const listNames = (names) =>
  * thing. 409 rather than 400: nothing about the request is malformed, it is
  * the state of the project that makes it impossible.
  */
-const refuseDuplicate = async (res, { ids, title }) => {
+const refuseDuplicate = async (res, { ids, title, where = "this project" }) => {
   const people = await User.find({ _id: { $in: ids } }).select("name");
   const names = people.map((person) => person.name);
   const one = names.length === 1;
@@ -116,7 +163,7 @@ const refuseDuplicate = async (res, { ids, title }) => {
     code: "duplicate_task",
     duplicates: names,
     title,
-    message: `${listNames(names)} ${one ? "has" : "have"} already been given "${title}" on this project, and ${one ? "has" : "have"} not finished it yet.`,
+    message: `${listNames(names)} ${one ? "has" : "have"} already been given "${title}" on ${where}, and ${one ? "has" : "have"} not finished it yet.`,
   });
 };
 
@@ -158,10 +205,11 @@ export const markTasksSeen = async (req, res) => {
 // GET /api/leader/tasks
 export const listTasks = async (req, res) => {
   try {
-    const { projectIds } = await getScope(req);
-    // Their projects, plus anything the admin handed to them personally
+    const { projectIds, managedTeamIds } = await getScope(req);
+    // Their projects and their departments, plus anything the admin handed to
+    // them personally
     const query = {
-      $or: [{ project: { $in: projectIds } }, { assignedTo: req.leader._id }],
+      $or: [...(await ownScope(req)), { assignedTo: req.leader._id }],
     };
 
     if (req.query.status && req.query.status !== "all") query.status = req.query.status;
@@ -179,6 +227,20 @@ export const listTasks = async (req, res) => {
 
     if (req.query.assignedTo && req.query.assignedTo !== "all") {
       query.assignedTo = req.query.assignedTo;
+    }
+
+    // One department at a time, for a manager who runs more than one
+    if (req.query.team && req.query.team !== "all") {
+      if (!managedTeamIds.some((id) => String(id) === String(req.query.team))) {
+        return res.status(403).json({ message: "That department is not one of yours" });
+      }
+      query.team = req.query.team;
+    }
+
+    // Department work is everything filed against a team rather than a project
+    if (req.query.view === "department") {
+      query.team = { $in: managedTeamIds };
+      query.project = null;
     }
 
     // "Assigned Tasks" = everything on their projects that is somebody else's.
@@ -204,7 +266,16 @@ export const listTasks = async (req, res) => {
     const search = (req.query.search || "").trim();
     if (search) {
       const regex = new RegExp(escapeRegex(search), "i");
-      query.$or = [{ title: regex }, { description: regex }];
+      /**
+       * $and, not a second $or.
+       *
+       * Assigning `query.$or` here replaced the scope clause that was already
+       * on it, so a search matched every task in the company rather than
+       * every task of this leader's matching the text. Both conditions have
+       * to hold, which is what $and says.
+       */
+      query.$and = [{ $or: query.$or }, { $or: [{ title: regex }, { description: regex }] }];
+      delete query.$or;
     }
 
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -271,7 +342,7 @@ const ensureOnProject = async (req, task) => {
   const result = await Project.updateOne(
     {
       _id: task.project,
-      teamLeader: req.leader._id,
+      operationsManager: req.leader._id,
       members: { $ne: task.assignedTo },
     },
     {
@@ -307,12 +378,57 @@ const ensureOnProject = async (req, task) => {
  * A plain `assignedTo`, and no assignee at all, both still behave exactly as
  * they did.
  */
+/**
+ * The three fields a manager sets that are numbers or dates rather than text.
+ *
+ * Applied on the way in on both create and update, because the update path
+ * spreads the whole body onto the document — so anything not squared off here
+ * reaches the schema as whatever was typed. Mongoose would refuse a progress
+ * of 500 with a validation error; refusing it here means the manager is told
+ * "0 to 100" instead of a cast message.
+ *
+ * A field the request did not mention is left out of the result entirely, so
+ * an edit that only renames a task does not reset its progress to zero.
+ */
+const sanitiseWork = (body) => {
+  const out = {};
+
+  if (body.progress !== undefined) {
+    out.progress = Math.min(100, Math.max(0, Math.round(Number(body.progress) || 0)));
+  }
+
+  if (body.bonus !== undefined) {
+    // Negative money on a task is a fine, and a fine is not this feature
+    out.bonus = Math.max(0, Number(body.bonus) || 0);
+  }
+
+  // "" is how a form clears a date. undefined is how it leaves one alone.
+  if (body.startDate !== undefined) out.startDate = body.startDate || null;
+
+  return out;
+};
+
+/**
+ * Start before finish. Checked rather than corrected, because there is no
+ * right guess: a manager who typed the dates the wrong way round may have
+ * meant either of them, and silently swapping them produces a schedule nobody
+ * agreed to.
+ */
+const datesDisagree = (startDate, dueDate) =>
+  startDate && dueDate && new Date(startDate) > new Date(dueDate)
+    ? "The start date is after the due date"
+    : null;
+
 export const createTask = async (req, res) => {
   try {
-    const base = { ...req.body };
+    const base = { ...req.body, ...sanitiseWork(req.body) };
     delete base.assignees;
     delete base.assignedTo;
     if (!base.dueDate) delete base.dueDate;
+    if (!base.startDate) delete base.startDate;
+
+    const clash = datesDisagree(base.startDate, base.dueDate);
+    if (clash) return res.status(400).json({ message: clash });
 
     const raw = Array.isArray(req.body.assignees) ? req.body.assignees : [req.body.assignedTo];
     const assignees = [
@@ -348,6 +464,7 @@ export const createTask = async (req, res) => {
       if (!assignedTo) continue;
       const held = await alreadyHasTask({
         project: req.body.project,
+        team: req.body.team,
         assignedTo,
         title: base.title,
       });
@@ -355,7 +472,13 @@ export const createTask = async (req, res) => {
     }
 
     if (clashing.length) {
-      return refuseDuplicate(res, { ids: clashing, title: String(base.title || "").trim() });
+      const { managedTeams } = await getScope(req);
+      const dept = managedTeams.find((t) => String(t._id) === String(req.body.team));
+      return refuseDuplicate(res, {
+        ids: clashing,
+        title: String(base.title || "").trim(),
+        where: req.body.project ? "this project" : dept ? dept.name : "this department",
+      });
     }
 
     const created = [];
@@ -386,13 +509,27 @@ export const createTask = async (req, res) => {
         }${joined ? ` and put ${joined === 1 ? "them" : `${joined} of them`} on the project` : ""}`,
     });
 
+    /**
+     * Everybody is told where to find it, on the panel they actually sign in
+     * to. Their role is read once here rather than assumed, because a
+     * department task can land on a sales executive or an operations manager just as
+     * easily as on an employee.
+     */
+    const assigneeRoles = new Map(
+      (
+        await User.find({ _id: { $in: created.map((d) => d.assignedTo).filter(Boolean) } }).select(
+          "role"
+        )
+      ).map((person) => [String(person._id), person.role])
+    );
+
     created.forEach((doc) => {
       if (!doc.assignedTo) return;
       notifyUser(doc.assignedTo, {
         type: "task",
         title: "New task assigned",
         message: `${req.leader.name} assigned you "${doc.title}"`,
-        link: "/employee/tasks/pending",
+        link: taskLinkFor(assigneeRoles.get(String(doc.assignedTo))),
       });
     });
 
@@ -423,15 +560,18 @@ export const updateTask = async (req, res) => {
     const existing = await findVisibleTask(req, req.params.id);
     if (!existing) return res.status(404).json({ message: "Task not found" });
 
-    const payload = { ...req.body };
+    const payload = { ...req.body, ...sanitiseWork(req.body) };
     delete payload._id;
     delete payload.assignedBy;
+    // Earning the bonus is the model's business, never the request's
+    delete payload.bonusAwardedAt;
     // The dot belongs to the assignee's own "seen" action, not to an edit
     delete payload.seenByAssignee;
 
-    if (payload.project || payload.assignedTo) {
+    if (payload.project || payload.team || payload.assignedTo) {
       const problem = await validateRefs(req, {
         project: payload.project || existing.project,
+        team: payload.team || existing.team,
         assignedTo: payload.assignedTo,
       });
       if (problem) return res.status(400).json({ message: problem });
@@ -440,6 +580,12 @@ export const updateTask = async (req, res) => {
     if (payload.assignedTo === "") payload.assignedTo = null;
     if (payload.dueDate === "") payload.dueDate = null;
 
+    const clash = datesDisagree(
+      payload.startDate ?? existing.startDate,
+      payload.dueDate ?? existing.dueDate
+    );
+    if (clash) return res.status(400).json({ message: clash });
+
     /**
      * Moving a task onto somebody, or renaming one, can land the same job on a
      * person twice just as surely as assigning it can — so the rule is checked
@@ -447,9 +593,10 @@ export const updateTask = async (req, res) => {
      * noticed at. `exclude` is this task itself: it is not its own duplicate.
      */
     const nextAssignee = payload.assignedTo ?? existing.assignedTo;
-    if (nextAssignee && (payload.assignedTo || payload.title || payload.project)) {
+    if (nextAssignee && (payload.assignedTo || payload.title || payload.project || payload.team)) {
       const held = await alreadyHasTask({
         project: payload.project || existing.project,
+        team: payload.team || existing.team,
         assignedTo: nextAssignee,
         title: payload.title ?? existing.title,
         exclude: existing._id,
@@ -464,15 +611,31 @@ export const updateTask = async (req, res) => {
     }
 
     // Moving a task onto someone else makes it unseen work for them
-    if (payload.assignedTo && String(payload.assignedTo) !== String(existing.assignedTo || "")) {
-      payload.seenByAssignee = false;
-    }
+    const reassigned =
+      payload.assignedTo && String(payload.assignedTo) !== String(existing.assignedTo || "");
+    if (reassigned) payload.seenByAssignee = false;
 
     Object.assign(existing, payload);
     await existing.save();
 
     // Same on a reassignment: the new person gets the project too
     const joined = await ensureOnProject(req, existing);
+
+    /**
+     * And they are told, which they were not before: work moved onto somebody
+     * by an edit arrived with no notification at all, so the only sign of it
+     * was the red dot — and department work, which may live on a panel with
+     * no task list yet, had not even that.
+     */
+    if (reassigned) {
+      const person = await User.findById(existing.assignedTo).select("role");
+      notifyUser(existing.assignedTo, {
+        type: "task",
+        title: "New task assigned",
+        message: `${req.leader.name} assigned you "${existing.title}"`,
+        link: taskLinkFor(person?.role),
+      });
+    }
 
     const item = await withRefs(Task.findById(existing._id));
 
@@ -587,11 +750,25 @@ export const reviewTask = async (req, res) => {
     });
 
     if (existing.assignedTo) {
+      /**
+       * The bonus is mentioned in the same breath as the approval, because
+       * being told separately that money has appeared is how somebody ends up
+       * unsure which piece of work it was for. Reads off bonusAwardedAt rather
+       * than off the decision — the model decides whether it was earned, and
+       * saying so here from the decision would be a second opinion that could
+       * disagree with the record.
+       */
+      const earned = existing.bonus > 0 && existing.bonusAwardedAt;
+
       notifyUser(existing.assignedTo, {
         type: "review",
-        title: decision === "approve" ? "Work approved" : "Changes requested",
-        message: `"${existing.title}" — ${reviewNote || "reviewed by your team leader"}`,
-        link: "/team-leader/tasks/assigned",
+        title: earned
+          ? `Work approved — ₹${existing.bonus.toLocaleString("en-IN")} bonus earned`
+          : decision === "approve"
+            ? "Work approved"
+            : "Changes requested",
+        message: `"${existing.title}" — ${reviewNote || "reviewed by your operations manager"}`,
+        link: "/employee/bonuses",
       });
     }
 

@@ -192,7 +192,7 @@ export default function Dashboard() {
         </Card>
 
         <Card className="p-5">
-          <p className="text-sm font-medium text-slate-600">Your team leader</p>
+          <p className="text-sm font-medium text-slate-600">Your operations manager</p>
           {leader ? (
             <div className="mt-3 flex items-center gap-3">
               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
@@ -209,7 +209,7 @@ export default function Dashboard() {
             <p className="mt-3 text-sm text-slate-400">Not assigned yet</p>
           )}
           <Link
-            to="/employee/chat/team-leader"
+            to="/employee/chat/operation-manager"
             className="mt-3 inline-block text-xs font-medium text-blue-600 hover:underline"
           >
             Send a message →

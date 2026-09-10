@@ -61,7 +61,7 @@ export const projects = buildCrud(SeoProject, {
   filterFields: ["status", "service", "client"],
   populate: [
     { path: "client", select: "name company" },
-    { path: "teamLeaders", select: "name email" },
+    { path: "operationsManagers", select: "name email" },
     { path: "employees", select: "name email" },
   ],
   sort: { createdAt: -1 },
@@ -87,10 +87,10 @@ export const projects = buildCrud(SeoProject, {
         .filter(Boolean);
     }
 
-    if (data.teamLeaders !== undefined || data.employees !== undefined) {
-      const leaders = asIdList(data.teamLeaders ?? existing?.teamLeaders);
+    if (data.operationsManagers !== undefined || data.employees !== undefined) {
+      const leaders = asIdList(data.operationsManagers ?? existing?.operationsManagers);
       const staff = asIdList(data.employees ?? existing?.employees);
-      data.teamLeaders = leaders;
+      data.operationsManagers = leaders;
       data.employees = staff;
       data.assignments = mergeAssignments(existing?.assignments, [...leaders, ...staff], req.admin);
     }
@@ -101,8 +101,8 @@ export const projects = buildCrud(SeoProject, {
   },
 
   afterSave: (doc, req, { isNew, previous }) => {
-    const before = [...(previous?.teamLeaders || []), ...(previous?.employees || [])];
-    const after = [...(doc.teamLeaders || []), ...(doc.employees || [])];
+    const before = [...(previous?.operationsManagers || []), ...(previous?.employees || [])];
+    const after = [...(doc.operationsManagers || []), ...(doc.employees || [])];
 
     notifyUsers(isNew ? after : newcomers(before, after), {
       type: "assignment",
@@ -118,7 +118,7 @@ export const projectDetail = async (req, res) => {
   try {
     const project = await SeoProject.findById(req.params.id)
       .populate("client", "name company email")
-      .populate("teamLeaders", "name email")
+      .populate("operationsManagers", "name email")
       .populate("employees", "name email");
 
     if (!project) return res.status(404).json({ message: "Engagement not found" });
@@ -693,7 +693,7 @@ export const mySeoWork = async (req, res) => {
     const isLeader = Boolean(req.leader);
 
     const query = isLeader
-      ? { $or: [{ teamLeaders: user._id }, { employees: user._id }] }
+      ? { $or: [{ operationsManagers: user._id }, { employees: user._id }] }
       : { employees: user._id };
 
     const engagements = await SeoProject.find(query)

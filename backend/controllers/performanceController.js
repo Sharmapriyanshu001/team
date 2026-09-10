@@ -11,10 +11,10 @@ const groupCount = (rows, idKey = "_id") =>
     return acc;
   }, {});
 
-// GET /api/admin/team-leaders/performance
-export const teamLeaderPerformance = async (req, res) => {
+// GET /api/admin/operations-managers/performance
+export const operationsManagerPerformance = async (req, res) => {
   try {
-    const leaders = await User.find({ role: "team_leader" })
+    const leaders = await User.find({ role: "operations_manager" })
       .select("name email designation department status")
       .sort({ name: 1 });
 
@@ -22,10 +22,10 @@ export const teamLeaderPerformance = async (req, res) => {
 
     const [projectRows, teamRows, projects] = await Promise.all([
       Project.aggregate([
-        { $match: { teamLeader: { $in: leaderIds } } },
+        { $match: { operationsManager: { $in: leaderIds } } },
         {
           $group: {
-            _id: "$teamLeader",
+            _id: "$operationsManager",
             total: { $sum: 1 },
             completed: {
               $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] },
@@ -38,7 +38,7 @@ export const teamLeaderPerformance = async (req, res) => {
         { $match: { reportsTo: { $in: leaderIds } } },
         { $group: { _id: "$reportsTo", count: { $sum: 1 } } },
       ]),
-      Project.find({ teamLeader: { $in: leaderIds } }).select("_id teamLeader"),
+      Project.find({ operationsManager: { $in: leaderIds } }).select("_id operationsManager"),
     ]);
 
     // Tasks belonging to each leader's projects
@@ -63,7 +63,7 @@ export const teamLeaderPerformance = async (req, res) => {
 
     const taskTotalsByLeader = {};
     projects.forEach((p) => {
-      const leaderKey = String(p.teamLeader);
+      const leaderKey = String(p.operationsManager);
       const row = tasksByProject[String(p._id)] || { total: 0, completed: 0 };
       const current = taskTotalsByLeader[leaderKey] || { total: 0, completed: 0 };
       taskTotalsByLeader[leaderKey] = {
@@ -105,7 +105,7 @@ export const teamLeaderPerformance = async (req, res) => {
 
     return res.status(200).json({ items });
   } catch (err) {
-    console.error("teamLeaderPerformance error:", err);
+    console.error("operationsManagerPerformance error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -177,7 +177,7 @@ export const employeePerformance = async (req, res) => {
         designation: emp.designation,
         department: emp.department,
         status: emp.status,
-        teamLeader: emp.reportsTo?.name || "-",
+        operationsManager: emp.reportsTo?.name || "-",
         tasks: t.total,
         tasksCompleted: t.completed,
         tasksPending: t.pending,

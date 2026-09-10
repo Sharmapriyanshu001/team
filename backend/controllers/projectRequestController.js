@@ -7,7 +7,7 @@ import { accessFor, binProject, requireModuleAction } from "./codeProjectControl
 
 /**
  * "Ask the admin" — the other half of taking editing and deleting away from
- * team leaders and employees.
+ * operations managers and employees.
  *
  * Nothing here gives either of them a new power. A request is a row; the only
  * code that touches a project is the admin's decision at the bottom of this
@@ -16,7 +16,7 @@ import { accessFor, binProject, requireModuleAction } from "./codeProjectControl
  * chat message nobody acts on.
  *
  * The four things a request deliberately cannot ask for are the assignment,
- * the team leaders, the employees and the per-project permissions. An approval
+ * the operations managers, the employees and the per-project permissions. An approval
  * is a tired person clicking a green button — so that gets refused by the
  * shape of what a request can contain, not by the reviewer's attention.
  */
@@ -32,7 +32,7 @@ const withRefs = (query) => POPULATE.reduce((q, p) => q.populate(p), query);
 const actorOf = (req) => req.admin || req.leader || req.employee;
 
 const panelOf = (role) =>
-  role === "team_leader" ? "/team-leader/code-projects" : "/employee/code-projects";
+  role === "operations_manager" ? "/operation-manager/code-projects" : "/employee/code-projects";
 
 const ADMIN_LINK = "/admin/code-projects/requests";
 
@@ -45,7 +45,7 @@ const alertAdmins = async (payload) => {
   notifyUsers(admins, { ...payload, link: ADMIN_LINK });
 };
 
-/* ------------------------------------------------ team leader / employee */
+/* ------------------------------------------------ operations manager / employee */
 
 /**
  * POST /api/{leader|employee}/code-projects/:id/requests

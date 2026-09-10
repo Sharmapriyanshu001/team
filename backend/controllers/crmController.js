@@ -14,6 +14,7 @@ import {
   settings,
 } from "../utils/invoicing.js";
 import { logActivity } from "../utils/activity.js";
+import { actorOf } from "../utils/actor.js";
 import { notifyUsers } from "../utils/notify.js";
 import { hashPassword } from "../utils/password.js";
 
@@ -133,6 +134,15 @@ export const convertLead = async (req, res) => {
       portalAccess: Boolean(lead.phone),
       status: "active",
       notes: lead.requirement,
+      /**
+       * Both halves of the link, written at the one moment both records are in
+       * hand. The lead pointing at its client was already enough to stop a
+       * second conversion; this direction is what lets the client's own page
+       * show where the work came from and who closed it without searching
+       * every lead for a matching id.
+       */
+      sourceLead: lead._id,
+      owner: lead.owner || actorOf(req)?._id,
     });
 
     lead.convertedClient = client._id;

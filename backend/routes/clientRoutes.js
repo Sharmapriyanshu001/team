@@ -3,6 +3,14 @@ import express from "express";
 import clientAuth from "../middleware/clientAuth.js";
 import { loginBurstLimiter, loginLimiter } from "../middleware/security.js";
 import {
+  countNewChangeRequests,
+  createChangeRequest,
+  getChangeRequest,
+  listChangeRequests,
+  updateChangeRequest,
+} from "../controllers/changeRequestController.js";
+
+import {
   clientLogin,
   clientLogout,
   clientProfile,
@@ -46,6 +54,23 @@ router.get("/dashboard", getDashboard);
 router.get("/projects", listProjects);
 router.get("/progress", getProgress);
 router.get("/files", listFiles);
+
+
+/* ------------------------------------------------------- change requests */
+
+/**
+ * What the client asked to have changed, and what has happened to it since.
+ *
+ * Raising one is the client's alone — a change request is by definition
+ * something they asked for, and work the team decided on is a task. They may
+ * add to the thread afterwards but cannot set the progress or the status on
+ * their own request, for the obvious reason.
+ */
+router.get("/change-requests/new-count", countNewChangeRequests);
+router.get("/change-requests", listChangeRequests);
+router.post("/change-requests", createChangeRequest);
+router.get("/change-requests/:id", getChangeRequest);
+router.put("/change-requests/:id", updateChangeRequest);
 
 /* -------------------------------------------------- feedback & meetings */
 

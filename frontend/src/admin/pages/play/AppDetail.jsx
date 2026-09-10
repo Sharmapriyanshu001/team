@@ -246,7 +246,7 @@ export default function AppDetail() {
         All apps
       </Link>
 
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">{app.name}</h1>
           <p className="mt-1 font-mono text-xs text-slate-400">{app.packageName}</p>

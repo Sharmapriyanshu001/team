@@ -30,14 +30,14 @@ const POPULATE = [
 
 const withRefs = (query) => POPULATE.reduce((q, p) => q.populate(p), query);
 
-const panelLink = (role) => (role === "team_leader" ? "/team-leader/files" : "/employee/files");
+const panelLink = (role) => (role === "operations_manager" ? "/operation-manager/files" : "/employee/files");
 
 /** Confirms the person about to receive the file really can. */
 const resolveAssignee = async (assignedTo, assignedRole) => {
   if (!assignedTo) return { assignee: null };
 
-  if (!["team_leader", "employee"].includes(assignedRole)) {
-    return { error: "Choose whether you are assigning to a team leader or an employee" };
+  if (!["operations_manager", "employee"].includes(assignedRole)) {
+    return { error: "Choose whether you are assigning to an operations manager or an employee" };
   }
 
   const assignee = await User.findOne({
@@ -47,7 +47,7 @@ const resolveAssignee = async (assignedTo, assignedRole) => {
   }).select("name role email");
 
   if (!assignee) {
-    return { error: "That person is not an active team leader or employee" };
+    return { error: "That person is not an active operations manager or employee" };
   }
   return { assignee };
 };

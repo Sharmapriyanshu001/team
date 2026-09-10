@@ -39,7 +39,7 @@ const STATUSES = ["available", "assigned", "downloaded", "completed"];
 const MAX_UPLOAD_MB = 50;
 
 const ASSIGN_ROLES = [
-  { value: "team_leader", label: "Team Leader" },
+  { value: "operations_manager", label: "Operations Manager" },
   { value: "employee", label: "Employee" },
 ];
 
@@ -136,7 +136,7 @@ export default function FileManager({
   const changeUpload = (e) =>
     setUploadForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
-  // Switching between team leader and employee clears the person already picked
+  // Switching between operations manager and employee clears the person already picked
   const pickRole = (role) =>
     setUploadForm((prev) => ({
       ...prev,
@@ -301,10 +301,10 @@ export default function FileManager({
   /* --------------------------------------------------------------- columns */
 
   const peopleOptions =
-    uploadForm.assignedRole === "team_leader" ? lookups.leaderOptions : lookups.employeeOptions;
+    uploadForm.assignedRole === "operations_manager" ? lookups.leaderOptions : lookups.employeeOptions;
 
   const assignPeopleOptions =
-    assignForm.assignedRole === "team_leader" ? lookups.leaderOptions : lookups.employeeOptions;
+    assignForm.assignedRole === "operations_manager" ? lookups.leaderOptions : lookups.employeeOptions;
 
   const columns = [
     {
@@ -618,7 +618,7 @@ export default function FileManager({
             {uploadForm.assignedRole ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field
-                  label={uploadForm.assignedRole === "team_leader" ? "Team leader" : "Employee"}
+                  label={uploadForm.assignedRole === "operations_manager" ? "Operations Manager" : "Employee"}
                   required
                 >
                   <Select
@@ -643,7 +643,7 @@ export default function FileManager({
               </div>
             ) : (
               <p className="text-xs text-slate-500">
-                Optional — pick Team Leader or Employee to make one person responsible for this
+                Optional — pick Operations Manager or Employee to make one person responsible for this
                 file. Leave it as it is to simply store the file.
               </p>
             )}

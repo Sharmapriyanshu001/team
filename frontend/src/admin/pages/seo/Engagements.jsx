@@ -31,7 +31,7 @@ const BLANK = {
   reportDay: 1,
   competitors: [],
   notes: "",
-  teamLeaders: [],
+  operationsManagers: [],
   employees: [],
 };
 
@@ -60,7 +60,7 @@ export default function Engagements() {
             client: row.client?._id || "",
             monthlyFee: row.monthlyFee || "",
             competitors: row.competitors || [],
-            teamLeaders: (row.teamLeaders || []).map((u) => u._id || u),
+            operationsManagers: (row.operationsManagers || []).map((u) => u._id || u),
             employees: (row.employees || []).map((u) => u._id || u),
           }
         : BLANK
@@ -110,7 +110,7 @@ export default function Engagements() {
       key: "team",
       header: "Team",
       render: (row) => {
-        const names = [...(row.teamLeaders || []), ...(row.employees || [])].map((u) => u.name);
+        const names = [...(row.operationsManagers || []), ...(row.employees || [])].map((u) => u.name);
         return names.length ? (
           <span className="text-slate-700">
             {names.slice(0, 2).join(", ")}
@@ -289,13 +289,13 @@ export default function Engagements() {
             />
           </Field>
 
-          <Field label="Team leaders" className="sm:col-span-2">
+          <Field label="Operations Managers" className="sm:col-span-2">
             <MultiSelect
               options={lookups.leaderOptions}
-              value={form.teamLeaders}
-              onChange={(value) => setForm((f) => ({ ...f, teamLeaders: value }))}
-              placeholder="Search team leaders…"
-              emptyLabel="No team leaders on record"
+              value={form.operationsManagers}
+              onChange={(value) => setForm((f) => ({ ...f, operationsManagers: value }))}
+              placeholder="Search operations managers…"
+              emptyLabel="No operations managers on record"
             />
           </Field>
 

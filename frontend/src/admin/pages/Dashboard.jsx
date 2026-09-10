@@ -123,8 +123,8 @@ export default function Dashboard() {
         <StatCard
           icon={UsersRound}
           label="Team Members"
-          value={stats.teamLeaders + stats.employees}
-          sub={`${stats.teamLeaders} leaders · ${stats.employees} employees`}
+          value={stats.operationsManagers + stats.employees}
+          sub={`${stats.operationsManagers} leaders · ${stats.employees} employees`}
           accent="light"
           to="/admin/insights/team"
         />
@@ -418,7 +418,7 @@ export default function Dashboard() {
                 </div>
                 <p className="mt-0.5 truncate text-[11px] text-slate-400">
                   {project.client?.company || project.client?.name || "No client"} ·{" "}
-                  {project.teamLeader?.name || "Unassigned"}
+                  {project.operationsManager?.name || "Unassigned"}
                 </p>
                 <div className="mt-2">
                   <ProgressBar value={project.progress} />

@@ -72,7 +72,7 @@ const developerConsoleSchema = new mongoose.Schema(
 
     /* -------------------------------------------------------- who works on it */
 
-    teamLeaders: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    operationsManagers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     employees: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     assignments: { type: [assignmentSchema], default: [] },
 
@@ -84,7 +84,7 @@ const developerConsoleSchema = new mongoose.Schema(
 // The questions the list screens ask
 developerConsoleSchema.index({ createdAt: -1 });
 developerConsoleSchema.index({ status: 1, createdAt: -1 });
-developerConsoleSchema.index({ teamLeaders: 1 });
+developerConsoleSchema.index({ operationsManagers: 1 });
 developerConsoleSchema.index({ employees: 1 });
 
 const DeveloperConsole = mongoose.model("DeveloperConsole", developerConsoleSchema);

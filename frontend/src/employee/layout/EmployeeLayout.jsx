@@ -12,7 +12,7 @@ export default function EmployeeLayout() {
   const { askSignOut, signOutDialog } = useSignOut({
     tokenKey: "employeeToken",
     userKey: "employee",
-    loginPath: "/employee/login",
+    loginPath: "/",
     panel: "your workspace",
   });
 

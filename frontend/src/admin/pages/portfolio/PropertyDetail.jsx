@@ -271,7 +271,7 @@ export default function PropertyDetail() {
         Portfolio
       </Link>
 
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">{property.name}</h1>
           <p className="mt-1 font-mono text-xs text-slate-400">{property.handle || "—"}</p>
@@ -726,7 +726,7 @@ export default function PropertyDetail() {
         }
       >
         {settings && (
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Name" required>
                 <Input

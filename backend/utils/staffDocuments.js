@@ -1,4 +1,3 @@
-import { InvalidInput } from "./crud.js";
 import { removeStoredFile, STAFF_DOC_FIELDS } from "./uploads.js";
 
 /**
@@ -18,6 +17,7 @@ const FILE_OWNER = {
   aadhaarBack: "documents",
   panFront: "documents",
   panBack: "documents",
+  resume: "documents",
   experienceLetter: "previousEmployment",
   salarySlip: "previousEmployment",
   relievingLetter: "previousEmployment",
@@ -35,22 +35,28 @@ const SECTIONS = ["documents", "bank", "previousEmployment"];
  * because a five-year-old employee record has no PAN scan on file would be a
  * strange thing for a form to do.
  */
-const REQUIRED_ON_CREATE = [
-  ["documents", "aadhaarNumber", "Aadhaar number"],
-  ["documents", "aadhaarFront", "photo of the Aadhaar front"],
-  ["documents", "aadhaarBack", "photo of the Aadhaar back"],
-  ["documents", "panNumber", "PAN number"],
-  ["documents", "panFront", "photo of the PAN front"],
-  ["documents", "panBack", "photo of the PAN back"],
-  ["bank", "accountName", "name on the bank account"],
-  ["bank", "accountNumber", "bank account number"],
-  ["bank", "ifsc", "IFSC code"],
-];
+/**
+ * Nothing here is required to open an account.
+ *
+ * It used to be: Aadhaar, PAN, four scans and full bank details all had to be
+ * present before a new employee could be saved at all. That is not how hiring
+ * works — somebody starts on Monday and the PAN card photo arrives on
+ * Thursday — so in practice it did not enforce good records, it stopped the
+ * login being created and the person spent their first week unable to see
+ * their own tasks.
+ *
+ * The paperwork is still collected on the same form and still validated for
+ * shape when it is filled in; it simply no longer holds up the account. What
+ * is missing is visible on the employee's own record, which is where somebody
+ * chasing it will look.
+ */
 
-const AADHAAR = /^\d{12}$/;
-const PAN = /^[A-Z]{5}\d{4}[A-Z]$/;
-const IFSC = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-const ACCOUNT = /^\d{9,18}$/;
+/**
+ * The identity and bank formats are checked in the browser now, beside the box
+ * that is wrong — see validateStep in admin/pages/staff/StaffForm.jsx. The
+ * server normalises what it is given and stores it; refusing a five-step form
+ * over one mistyped digit threw away everything else on it.
+ */
 
 /**
  * A section arrives as a JSON string over multipart and as an object over
@@ -149,12 +155,14 @@ export const applyStaffPaperwork = (payload, req, existing) => {
     const aadhaar = trim(documents.aadhaarNumber).replace(/[\s-]/g, "");
     const pan = trim(documents.panNumber).toUpperCase();
 
-    if (aadhaar && !AADHAAR.test(aadhaar)) {
-      throw new InvalidInput("An Aadhaar number is 12 digits");
-    }
-    if (pan && !PAN.test(pan)) {
-      throw new InvalidInput("A PAN looks like ABCDE1234F");
-    }
+    /**
+     * Normalised, not refused.
+     *
+     * Refusing the save over a mistyped Aadhaar discarded every other field on
+     * a five-step form. The shape is still checked in the browser, where it
+     * can be pointed at beside the box that is wrong rather than losing the
+     * page — see validateStep in admin/pages/staff/StaffForm.jsx.
+     */
 
     documents.aadhaarNumber = aadhaar;
     documents.panNumber = pan;
@@ -165,26 +173,13 @@ export const applyStaffPaperwork = (payload, req, existing) => {
     const account = trim(bank.accountNumber).replace(/[\s-]/g, "");
     const ifsc = trim(bank.ifsc).toUpperCase();
 
-    if (account && !ACCOUNT.test(account)) {
-      throw new InvalidInput("A bank account number is 9 to 18 digits");
-    }
-    if (ifsc && !IFSC.test(ifsc)) {
-      throw new InvalidInput("An IFSC code looks like HDFC0001234");
-    }
+    // Stored as entered, for the same reason as the identity numbers above.
 
     bank.accountNumber = account;
     bank.ifsc = ifsc;
   }
 
   /* ----------------------------------------------------- present at all */
-
-  if (isNew) {
-    REQUIRED_ON_CREATE.forEach(([section, field, label]) => {
-      const value = data[section]?.[field];
-      const missing = FILE_OWNER[field] ? !value?.storedName : !trim(value);
-      if (missing) throw new InvalidInput(`Add the ${label} before saving`);
-    });
-  }
 
   return { data, orphaned };
 };
@@ -213,6 +208,20 @@ export const discardUploadsIfRefused = (req, res, next) => {
 /** Every stored file on a staff record, for when the record itself goes. */
 export const paperworkFiles = (user) =>
   STAFF_DOC_FIELDS.map((field) => user?.[FILE_OWNER[field]]?.[field]?.storedName).filter(Boolean);
+
+/**
+ * One file off a multipart request, in the shape a User stores it.
+ *
+ * The joining form sends its papers through applyStaffPaperwork above, but a
+ * hire is not that form — it sends one CV and nothing else — and reaching for
+ * the whole four-step merge to file a single upload would be the long way
+ * round. This is the same descriptor, exported so both roads write the record
+ * identically.
+ */
+export const uploadedAs = (req, field) => {
+  const file = req.files?.[field]?.[0];
+  return file ? describe(file) : null;
+};
 
 /** Locate one document on a user, whichever sub-document it lives in. */
 export const findPaperwork = (user, field) => {

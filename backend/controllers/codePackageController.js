@@ -22,13 +22,13 @@ const idOf = (value) => String(value?._id || value || "");
 const actorOf = (req) => req.admin || req.leader || req.employee;
 
 // Everyone who can hold a staff login, which is everyone who can be sent to.
-const STAFF_ROLES = [...ADMIN_ROLES, "team_leader", "employee"];
+const STAFF_ROLES = [...ADMIN_ROLES, "operations_manager", "employee"];
 
 // The new Code section, which is a different screen from the review pipeline
 // each panel already had at /code.
 const panelOf = (role) => {
   if (ADMIN_ROLES.includes(role)) return "/admin/code-share";
-  return role === "team_leader" ? "/team-leader/code-share" : "/employee/code-share";
+  return role === "operations_manager" ? "/operation-manager/code-share" : "/employee/code-share";
 };
 
 const paginate = (req) => {

@@ -26,7 +26,7 @@ export default function LeaderLogin() {
       const { data } = await api.post("/leader/login", form);
       localStorage.setItem("leaderToken", data.token);
       localStorage.setItem("leader", JSON.stringify(data.leader));
-      navigate("/team-leader/dashboard");
+      navigate("/operation-manager/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "Something went wrong");
     } finally {
@@ -44,7 +44,7 @@ export default function LeaderLogin() {
           </span>
           <div className="leading-tight">
             <p className="font-semibold text-white">JHA Company</p>
-            <p className="text-[11px] uppercase tracking-widest text-slate-500">Team Panel</p>
+            <p className="text-[11px] uppercase tracking-widest text-slate-500">Operations Manager</p>
           </div>
         </div>
 
@@ -82,11 +82,11 @@ export default function LeaderLogin() {
             </span>
             <div className="leading-tight">
               <p className="font-semibold text-slate-900">JHA Company</p>
-              <p className="text-[11px] uppercase tracking-widest text-slate-400">Team Panel</p>
+              <p className="text-[11px] uppercase tracking-widest text-slate-400">Operations Manager</p>
             </div>
           </div>
 
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Team leader sign in</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Operations Manager sign in</h1>
           <p className="mt-1 text-sm text-slate-500">Use the account your admin set up for you</p>
 
           {error && (

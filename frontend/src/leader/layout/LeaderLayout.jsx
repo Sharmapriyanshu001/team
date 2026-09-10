@@ -12,7 +12,7 @@ export default function LeaderLayout() {
   const { askSignOut, signOutDialog } = useSignOut({
     tokenKey: "leaderToken",
     userKey: "leader",
-    loginPath: "/team-leader/login",
+    loginPath: "/",
     panel: "the team panel",
   });
 
@@ -27,14 +27,14 @@ export default function LeaderLayout() {
     <>
       <PanelLayout
         navItems={navItems}
-        brand={{ title: "JHA Leader", subtitle: "Team Panel", icon: HardHat }}
-        footer="JHA Company · Team Leader"
+        brand={{ title: "JHA Operations", subtitle: "Operations Manager", icon: HardHat }}
+        footer="JHA Company · Operations Manager"
         user={leader}
-        profilePath="/team-leader/profile"
+        profilePath="/operation-manager/profile"
         onLogout={askSignOut}
         topbarExtra={
           <Link
-            to="/team-leader/notifications"
+            to="/operation-manager/notifications"
             title="Notifications"
             className="relative rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 hover:text-blue-600"
           >

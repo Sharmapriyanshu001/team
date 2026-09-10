@@ -23,7 +23,7 @@ export default function AssignTeam() {
   const [projects, setProjects] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [project, setProject] = useState(null);
-  const [teamLeader, setTeamLeader] = useState("");
+  const [operationsManager, setOperationsManager] = useState("");
   const [members, setMembers] = useState([]);
   const [query, setQuery] = useState("");
 
@@ -56,7 +56,7 @@ export default function AssignTeam() {
         if (!active) return;
         setSuccess("");
         setProject(data.item);
-        setTeamLeader(data.item.teamLeader?._id || "");
+        setOperationsManager(data.item.operationsManager?._id || "");
         setMembers((data.item.members || []).map((m) => m._id));
       })
       .catch((err) => {
@@ -78,7 +78,7 @@ export default function AssignTeam() {
 
     try {
       const { data } = await adminApi.put(`/admin/projects/${selectedId}`, {
-        teamLeader,
+        operationsManager,
         members,
       });
       setProject(data.item);
@@ -100,7 +100,7 @@ export default function AssignTeam() {
    * another leader's team would sit on the project unable to be given a task.
    */
   const reportsElsewhere = (emp) =>
-    Boolean(teamLeader) && String(emp.reportsTo?._id || "") !== String(teamLeader);
+    Boolean(operationsManager) && String(emp.reportsTo?._id || "") !== String(operationsManager);
 
   const strays = lookups.employees.filter(
     (emp) => members.includes(emp._id) && reportsElsewhere(emp)
@@ -138,7 +138,7 @@ export default function AssignTeam() {
                   <Badge value={item.status} />
                 </div>
                 <span className="text-xs text-slate-400">
-                  {item.teamLeader?.name || "No leader"} · {item.members?.length || 0} members
+                  {item.operationsManager?.name || "No leader"} · {item.members?.length || 0} members
                 </span>
               </button>
             ))}
@@ -161,7 +161,7 @@ export default function AssignTeam() {
                 }`}
               />
 
-              <div className="space-y-5 p-5">
+              <div className="space-y-4 p-5">
                 <div className="rounded-lg bg-slate-50 p-4">
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-500">
                     <span>
@@ -177,11 +177,11 @@ export default function AssignTeam() {
                   </div>
                 </div>
 
-                <Field label="Team leader" className="max-w-md">
+                <Field label="Operations Manager" className="max-w-md">
                   <Select
-                    value={teamLeader}
-                    onChange={(e) => setTeamLeader(e.target.value)}
-                    placeholder="No team leader"
+                    value={operationsManager}
+                    onChange={(e) => setOperationsManager(e.target.value)}
+                    placeholder="No operations manager"
                     options={lookups.leaderOptions}
                   />
                 </Field>
@@ -191,8 +191,8 @@ export default function AssignTeam() {
                     <TriangleAlert size={14} className="mt-0.5 shrink-0" />
                     <span>
                       {strays.map((e) => e.name).join(", ")}{" "}
-                      {strays.length === 1 ? "reports" : "report"} to another team leader, so{" "}
-                      {lookups.teamLeaders.find((l) => String(l._id) === String(teamLeader))?.name ||
+                      {strays.length === 1 ? "reports" : "report"} to another operations manager, so{" "}
+                      {lookups.operationsManagers.find((l) => String(l._id) === String(operationsManager))?.name ||
                         "this leader"}{" "}
                       cannot assign them tasks. Change their "Reports to" under Employees, or pick
                       someone from this leader's team.
@@ -255,7 +255,7 @@ export default function AssignTeam() {
                                   reports to {emp.reportsTo.name}
                                 </span>
                               ) : (
-                                <span className="text-amber-700">no team leader</span>
+                                <span className="text-amber-700">no operations manager</span>
                               )}
                             </span>
                           </span>

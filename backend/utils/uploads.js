@@ -91,6 +91,8 @@ export const STAFF_DOC_FIELDS = [
   "aadhaarBack",
   "panFront",
   "panBack",
+  // The CV, which arrives with the hire rather than with the paperwork
+  "resume",
   "experienceLetter",
   "salarySlip",
   "relievingLetter",

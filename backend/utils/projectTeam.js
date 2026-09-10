@@ -4,7 +4,7 @@
  * `Project.members` and `CodeProject.employees` are plain id lists — they say
  * that somebody is on a project but nothing about how they got there. The
  * employee looking at their own list has a fair question the app could not
- * answer: which team leader sent me this, and when?
+ * answer: which operations manager sent me this, and when?
  *
  * So a parallel list of records answers it. Kept beside the id list rather than
  * replacing it, because every existing query — the employee's scope, the check
@@ -52,7 +52,7 @@ export const assignmentFor = (records = [], userId) =>
 /**
  * What a panel should show for "who sent me this".
  *
- * Falls back to the team leader when there is no record — memberships made
+ * Falls back to the operations manager when there is no record — memberships made
  * before this was tracked, or by an admin straight from their own screen. The
  * leader is who is answerable for that person being on the project either way,
  * so the name is useful; the date is not guessed, and comes back null.

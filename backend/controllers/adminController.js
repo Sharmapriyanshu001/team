@@ -1,5 +1,5 @@
 import { signStaffToken } from "../utils/token.js";
-import User, { ADMIN_ROLES } from "../models/User.js";
+import User, { ADMIN_PANEL_ROLES, ADMIN_ROLES, DEPARTMENT_LABELS } from "../models/User.js";
 import ActivityLog from "../models/ActivityLog.js";
 import { comparePassword } from "../utils/password.js";
 import { permissionsFor, SUPER_ADMIN } from "../middleware/permissions.js";
@@ -14,6 +14,12 @@ const safeAdmin = (user) => ({
   phone: user.phone,
   designation: user.designation,
   department: user.department,
+  /**
+   * What to call this account in the panel's own chrome. An HR account signing
+   * in and being greeted as "Control Panel" is a small thing that makes a
+   * person wonder whether they are in the right place.
+   */
+  departmentLabel: DEPARTMENT_LABELS[user.role] || "",
 });
 
 // POST /api/admin/login
@@ -32,9 +38,11 @@ export const adminLogin = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    // A super admin signs in through the same door as an admin
-    if (!ADMIN_ROLES.includes(user.role)) {
-      return res.status(403).json({ message: "This account is not an admin" });
+    // A super admin signs in through the same door as an admin, and so does a
+    // department account — HR, Sales or Operations. What each of them sees on
+    // the other side is settled by their permissions, not by this check.
+    if (!ADMIN_PANEL_ROLES.includes(user.role)) {
+      return res.status(403).json({ message: "This account cannot use the admin panel" });
     }
     if (user.status !== "active") {
       return res.status(403).json({ message: "This account is inactive" });
@@ -76,6 +84,12 @@ export const adminProfile = async (req, res) => {
     admin: safeAdmin(req.admin),
     permissions: {
       isSuperAdmin: req.admin.role === SUPER_ADMIN,
+      // A department head is not an administrator however wide their role is.
+      // The panel uses this to keep Roles and Department Accounts out of their
+      // sidebar, matching the two routes that refuse them outright.
+      isFullAdmin: ADMIN_ROLES.includes(req.admin.role),
+      department: permissions.department || "",
+      departmentLabel: DEPARTMENT_LABELS[req.admin.role] || "",
       unrestricted: Boolean(permissions.unrestricted),
       modules: permissions.modules,
       roleName: permissions.roleName || "",

@@ -27,7 +27,7 @@ export const getReports = async (req, res) => {
     ] = await Promise.all([
       Project.find({ createdAt: range })
         .populate("client", "name company")
-        .populate("teamLeader", "name")
+        .populate("operationsManager", "name")
         .sort({ createdAt: -1 }),
       Task.aggregate([
         { $match: { createdAt: range } },

@@ -4,7 +4,7 @@ export default function CompletedTasks() {
   return (
     <TaskList
       title="Completed"
-      subtitle="Work your team leader has signed off"
+      subtitle="Work your operations manager has signed off"
       baseFilters={{ status: "completed" }}
       readOnly
     />

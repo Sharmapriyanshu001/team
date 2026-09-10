@@ -12,8 +12,8 @@ const SCOPE_SOURCES = {
     Client.find({ status: { $ne: "inactive" } })
       .select("name company email")
       .sort({ name: 1 }),
-  team_leader: () =>
-    User.find({ role: "team_leader" }).select("name email designation").sort({ name: 1 }),
+  operations_manager: () =>
+    User.find({ role: "operations_manager" }).select("name email designation").sort({ name: 1 }),
   employee_admin: () =>
     User.find({ role: "employee" }).select("name email designation").sort({ name: 1 }),
   project: () =>
@@ -116,7 +116,7 @@ export const sendMessage = async (req, res) => {
     // For staff scopes the room id is the person's own user id, so the other
     // side can be pinged straight away.
     const inboxLink = {
-      team_leader: "/leader/chat/admin",
+      operations_manager: "/leader/chat/admin",
       employee_admin: "/employee/chat/admin",
     }[scope];
 

@@ -68,7 +68,7 @@ export default function ProjectList({ view, title, subtitle, emptyTitle, emptyMe
   return (
     <div>
       <PageHeader title={title} subtitle={subtitle || `${crud.total} projects`}>
-        <Button variant="outline" onClick={() => navigate("/team-leader/progress")}>
+        <Button variant="outline" onClick={() => navigate("/operation-manager/progress")}>
           <CalendarDays size={15} />
           Progress board
         </Button>

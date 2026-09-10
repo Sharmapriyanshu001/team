@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Send, MessagesSquare, Search, Lock } from "lucide-react";
 
 import { initialsOf } from "../format";
@@ -35,6 +36,10 @@ export default function ChatPanel({
   currentUserId,
   mineWhen,
 }) {
+  // ?room=<id> — see where it is applied below
+  const [params] = useSearchParams();
+  const wanted = params.get("room");
+
   const [rooms, setRooms] = useState([]);
   const [scope, setScope] = useState("");
   const [activeId, setActiveId] = useState("");
@@ -69,10 +74,26 @@ export default function ChatPanel({
         setScope(data.scope || "");
         setRooms(data.rooms || []);
         if (data.rooms?.length) {
+          /**
+           * ?room=<id> opens straight onto one conversation.
+           *
+           * This is what a "Message" button somewhere else in the panel links
+           * to — from an employee's record, say. Without it the button lands
+           * on whoever happens to be first in the list, which is worse than
+           * not having the button.
+           *
+           * Ignored when the id names nobody this account can talk to, so a
+           * stale link falls back to the usual first room rather than showing
+           * an empty thread.
+           */
+          const asked = wanted && data.rooms.find((room) => String(room.id) === String(wanted));
+
           setActiveId((current) =>
-            data.rooms.some((room) => String(room.id) === String(current))
-              ? current
-              : data.rooms[0].id
+            asked
+              ? asked.id
+              : data.rooms.some((room) => String(room.id) === String(current))
+                ? current
+                : data.rooms[0].id
           );
           setLoadingMessages(true);
         }
@@ -88,7 +109,8 @@ export default function ChatPanel({
     return () => {
       active = false;
     };
-  }, [api, base, tab, reloadKey]);
+    // `wanted` is in the list so a link to a different room re-selects it
+  }, [api, base, tab, reloadKey, wanted]);
 
   useEffect(() => {
     scopeRef.current = scope;

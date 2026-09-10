@@ -54,7 +54,7 @@ const snapshotName = () => `${Date.now()}-${crypto.randomBytes(8).toString("hex"
 
 /** Everyone assigned to the project, for the "this changed under you" notice. */
 const assigneesOf = (project) => [
-  ...(project.teamLeaders || []),
+  ...(project.operationsManagers || []),
   ...(project.employees || []),
 ];
 

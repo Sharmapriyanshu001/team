@@ -20,6 +20,12 @@ export const makeCrudHooks = (api, base) => {
   const useCrud = (resource, { initialFilters = {}, limit = 25 } = {}) => {
     const [rows, setRows] = useState([]);
     const [meta, setMeta] = useState({ total: 0, page: 1, pages: 1 });
+    /**
+     * The tiles above the table, when the endpoint sends them: how many
+     * records there are in total, how many are active, and which departments
+     * exist. Null for every list that does not — see buildCrud's `summary`.
+     */
+    const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -45,6 +51,9 @@ export const makeCrudHooks = (api, base) => {
           if (!active) return;
           setRows(data.items || []);
           setMeta({ total: data.total || 0, page: data.page || 1, pages: data.pages || 1 });
+          // Kept from the previous response when one arrives without it, so
+          // the tiles do not blink empty between pages
+          if (data.summary) setSummary(data.summary);
           setError("");
         })
         .catch((err) => {
@@ -113,6 +122,7 @@ export const makeCrudHooks = (api, base) => {
       loading,
       error,
       setError,
+      summary,
       ...meta,
       page,
       setPage: onPageChange,

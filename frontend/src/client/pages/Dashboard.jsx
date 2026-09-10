@@ -20,7 +20,7 @@ import {
   Gauge,
   CalendarClock,
   Star,
-  IndianRupee,
+  ListChecks,
   FolderOpen,
 } from "lucide-react";
 
@@ -40,12 +40,6 @@ import {
 const axisProps = { tick: { fill: CHART.grey, fontSize: 11 }, tickLine: false, axisLine: false };
 
 const toPieData = (obj = {}) => Object.entries(obj).map(([name, value]) => ({ name, value }));
-
-const money = (value = 0) => {
-  if (value >= 10000000) return `₹${(value / 10000000).toFixed(2)} Cr`;
-  if (value >= 100000) return `₹${(value / 100000).toFixed(1)} L`;
-  return `₹${Number(value).toLocaleString("en-IN")}`;
-};
 
 const meetingWhen = (value) =>
   new Date(value).toLocaleString("en-IN", {
@@ -136,11 +130,18 @@ export default function Dashboard() {
           accent="light"
           to="/client/meetings"
         />
+{/**
+   * The contract value used to sit here. Money is the administrator's — what
+   * a project is worth to the company and what this client was invoiced are
+   * not the same figure, and putting one on a client's dashboard invites the
+   * question the screen cannot answer. Replaced with the thing they open this
+   * page to find out.
+   */}
         <StatCard
-          icon={IndianRupee}
-          label="Contract value"
-          value={money(stats.totalBudget)}
-          sub="Across all your projects"
+          icon={ListChecks}
+          label="Work remaining"
+          value={Math.max(0, (stats.tasksTotal || 0) - (stats.tasksCompleted || 0))}
+          sub={`${stats.tasksCompleted || 0} of ${stats.tasksTotal || 0} done`}
           accent="blue"
         />
       </div>
@@ -373,7 +374,7 @@ export default function Dashboard() {
                   <Badge value={project.status} />
                 </div>
                 <p className="mt-0.5 truncate text-[11px] text-slate-400">
-                  Lead: {project.teamLeader?.name || "To be assigned"}
+                  Lead: {project.operationsManager?.name || "To be assigned"}
                 </p>
                 <div className="mt-2">
                   <ProgressBar value={project.progress} />

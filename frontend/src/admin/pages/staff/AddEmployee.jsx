@@ -6,7 +6,7 @@ export default function AddEmployee() {
       resource="employees"
       title="Employee"
       listPath="/admin/employees"
-      showTeamLeader
+      showOperationsManager
     />
   );
 }

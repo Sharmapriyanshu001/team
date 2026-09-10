@@ -40,7 +40,7 @@ const BLANK = {
   feeType: "percent_of_spend",
   feeValue: "",
   notes: "",
-  teamLeaders: [],
+  operationsManagers: [],
   employees: [],
 };
 
@@ -145,7 +145,7 @@ export default function Accounts() {
             client: row.client?._id || "",
             monthlyBudget: row.monthlyBudget || "",
             feeValue: row.feeValue || "",
-            teamLeaders: (row.teamLeaders || []).map((u) => u._id || u),
+            operationsManagers: (row.operationsManagers || []).map((u) => u._id || u),
             employees: (row.employees || []).map((u) => u._id || u),
           }
         : BLANK
@@ -452,13 +452,13 @@ export default function Accounts() {
             />
           </Field>
 
-          <Field label="Team leaders" className="sm:col-span-2">
+          <Field label="Operations Managers" className="sm:col-span-2">
             <MultiSelect
               options={lookups.leaderOptions}
-              value={form.teamLeaders}
-              onChange={(value) => setForm((f) => ({ ...f, teamLeaders: value }))}
-              placeholder="Search team leaders…"
-              emptyLabel="No team leaders on record"
+              value={form.operationsManagers}
+              onChange={(value) => setForm((f) => ({ ...f, operationsManagers: value }))}
+              placeholder="Search operations managers…"
+              emptyLabel="No operations managers on record"
             />
           </Field>
           <Field label="Who runs it" className="sm:col-span-2">

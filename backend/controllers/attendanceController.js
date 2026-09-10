@@ -15,6 +15,21 @@ const dayEnd = (value) => {
   return d;
 };
 
+/**
+ * Whose attendance this panel is about.
+ *
+ * Both handlers below scope to this, and that is the point of it being one
+ * constant: the sheet used to derive its people from a query and the summary
+ * used to derive them from whatever records happened to exist, so the two
+ * screens answered different questions and only one of them knew it.
+ */
+const ATTENDANCE_ROLES = ["employee", "operations_manager"];
+
+const liveStaff = () =>
+  User.find({ role: { $in: ATTENDANCE_ROLES }, status: "active" })
+    .select("name email designation department role")
+    .sort({ name: 1 });
+
 // GET /api/admin/attendance?date=YYYY-MM-DD
 // Returns every employee with that day's record (or a blank one).
 export const getAttendanceSheet = async (req, res) => {
@@ -22,9 +37,7 @@ export const getAttendanceSheet = async (req, res) => {
     const date = dayStart(req.query.date);
 
     const [employees, records] = await Promise.all([
-      User.find({ role: { $in: ["employee", "team_leader"] }, status: "active" })
-        .select("name email designation department role")
-        .sort({ name: 1 }),
+      liveStaff(),
       Attendance.find({ date: { $gte: date, $lt: dayEnd(date) } }),
     ]);
 
@@ -87,9 +100,19 @@ export const saveAttendance = async (req, res) => {
           update: {
             $set: {
               status: entry.status,
-              checkIn: entry.checkIn || "",
-              checkOut: entry.checkOut || "",
               note: entry.note || "",
+              /**
+               * Times are written only when the request actually carries them.
+               *
+               * The attendance sheet no longer collects in and out times, so
+               * its entries arrive without those fields — and writing "" for a
+               * field nobody sent would blank the times already recorded
+               * against a day the moment somebody corrected a status on it.
+               * An absent field means "leave it alone", which is also what any
+               * other caller sending a partial entry would expect.
+               */
+              ...(entry.checkIn !== undefined ? { checkIn: entry.checkIn || "" } : {}),
+              ...(entry.checkOut !== undefined ? { checkOut: entry.checkOut || "" } : {}),
             },
           },
           upsert: true,
@@ -123,12 +146,31 @@ export const getAttendanceSummary = async (req, res) => {
     const start = new Date(base.getFullYear(), base.getMonth(), 1);
     const end = new Date(base.getFullYear(), base.getMonth() + 1, 1);
 
+    /**
+     * Scoped to the same people the daily sheet shows.
+     *
+     * Without this the summary counted every record in the range, including
+     * those belonging to accounts that have since been deleted — and this
+     * database holds a lot of them. Measured on the real data, the chart read
+     * 64 marked days in July when 16 belonged to anybody still here, and 104
+     * against 44 in August. HR saw a correct sheet of real people and then a
+     * month view showing roughly double, with no way to tell which was wrong.
+     *
+     * Deriving the ids from the same query the sheet uses is what makes the
+     * two screens agree by construction rather than by coincidence.
+     */
+    const staff = await User.find({
+      role: { $in: ATTENDANCE_ROLES },
+      status: "active",
+    }).distinct("_id");
+
     // Records are stored at local midnight, so the day-of-month has to be read
     // back in local time too — $dayOfMonth would read them in UTC and shift
     // every date by one for timezones ahead of UTC.
-    const records = await Attendance.find({ date: { $gte: start, $lt: end } }).select(
-      "date status"
-    );
+    const records = await Attendance.find({
+      employee: { $in: staff },
+      date: { $gte: start, $lt: end },
+    }).select("date status");
 
     const daily = {};
     records.forEach((record) => {

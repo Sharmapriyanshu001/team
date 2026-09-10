@@ -3,7 +3,7 @@ import { Gauge, AlertTriangle, CalendarDays } from "lucide-react";
 
 import clientApi from "../clientApi";
 import { STATUS_COLORS } from "../../shared/theme";
-import { prettify, initialsOf, money } from "../../shared/format";
+import { prettify, initialsOf } from "../../shared/format";
 import {
   Alert,
   Badge,
@@ -147,17 +147,17 @@ export default function ProjectProgress() {
                     <p className="text-[11px] uppercase tracking-wide text-slate-400">
                       Project lead
                     </p>
-                    {item.teamLeader ? (
+                    {item.operationsManager ? (
                       <div className="mt-2 flex items-center gap-2.5">
                         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-[10px] font-semibold text-white">
-                          {initialsOf(item.teamLeader.name)}
+                          {initialsOf(item.operationsManager.name)}
                         </span>
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-slate-800">
-                            {item.teamLeader.name}
+                            {item.operationsManager.name}
                           </p>
                           <p className="truncate text-[11px] text-slate-400">
-                            {item.teamLeader.designation || "Project lead"}
+                            {item.operationsManager.designation || "Project lead"}
                           </p>
                         </div>
                       </div>
@@ -172,8 +172,27 @@ export default function ProjectProgress() {
                       <dd className="font-medium text-slate-800">{item.teamSize}</dd>
                     </div>
                     <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500">Contract value</dt>
-                      <dd className="font-medium text-slate-800">{money(item.budget)}</dd>
+                      <dt className="text-slate-500">Work left</dt>
+                      <dd className="font-medium text-slate-800">
+                        {item.tasksRemaining ? `${item.tasksRemaining} tasks` : "None"}
+                      </dd>
+                    </div>
+                    {item.openRequests > 0 && (
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-slate-500">Your open requests</dt>
+                        <dd className="font-medium text-amber-700">{item.openRequests}</dd>
+                      </div>
+                    )}
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-slate-500">Expected finish</dt>
+                      <dd
+                        className={`font-medium ${
+                          item.behindPlan ? "text-amber-700" : "text-slate-800"
+                        }`}
+                        title={item.estimateBasis}
+                      >
+                        {item.estimatedDate ? fmt(item.estimatedDate) : "Not yet clear"}
+                      </dd>
                     </div>
                     <div className="flex justify-between gap-2">
                       <dt className="text-slate-500">Stage</dt>

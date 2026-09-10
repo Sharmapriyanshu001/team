@@ -181,7 +181,7 @@ export default function Report() {
         </Link>
       </div>
 
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">{engagement.name}</h1>
           <p className="mt-1 text-sm text-slate-500">

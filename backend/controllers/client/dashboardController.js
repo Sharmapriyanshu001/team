@@ -50,7 +50,7 @@ export const getDashboard = async (req, res) => {
       notifications,
     ] = await Promise.all([
       Project.find({ _id: { $in: projectIds } })
-        .populate("teamLeader", "name designation email")
+        .populate("operationsManager", "name designation email")
         .sort({ endDate: 1 }),
 
       Task.aggregate([
@@ -123,7 +123,6 @@ export const getDashboard = async (req, res) => {
         avgProgress: projects.length
           ? Math.round(projects.reduce((sum, p) => sum + (p.progress || 0), 0) / projects.length)
           : 0,
-        totalBudget: projects.reduce((sum, p) => sum + (p.budget || 0), 0),
         tasksTotal,
         tasksCompleted,
         completionRate: tasksTotal ? Math.round((tasksCompleted / tasksTotal) * 100) : 0,

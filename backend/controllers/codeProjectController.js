@@ -31,7 +31,7 @@ import {
 
 const POPULATE = [
   { path: "project", select: "name code" },
-  { path: "teamLeaders", select: "name email designation role" },
+  { path: "operationsManagers", select: "name email designation role" },
   { path: "employees", select: "name email designation role" },
   { path: "createdBy", select: "name" },
   // The bin has to name whoever deleted it, not just when
@@ -114,8 +114,8 @@ export const accessFor = (doc, user) => {
   if (trashed) return null;
 
   const assigned =
-    (user.role === "team_leader" &&
-      (doc.teamLeaders || []).some((id) => idOf(id) === idOf(user._id))) ||
+    (user.role === "operations_manager" &&
+      (doc.operationsManagers || []).some((id) => idOf(id) === idOf(user._id))) ||
     (user.role === "employee" && (doc.employees || []).some((id) => idOf(id) === idOf(user._id)));
 
   if (!assigned) return null;
@@ -158,7 +158,7 @@ const scopeFor = (user) => {
 
   // null also matches the field being absent, so projects that predate the bin
   // are live — which is what they are.
-  if (user.role === "team_leader") return { teamLeaders: user._id, deletedAt: null };
+  if (user.role === "operations_manager") return { operationsManagers: user._id, deletedAt: null };
   if (user.role === "employee") return { employees: user._id, deletedAt: null };
   // Any other role is assigned to nothing, and this filter can match nothing
   return { _id: null };
@@ -214,7 +214,7 @@ export const requireModuleAction = async (req, res, action) => {
 /* ----------------------------------------------------------- notifications */
 
 const panelOf = (role) =>
-  role === "team_leader" ? "/team-leader/code-projects" : "/employee/code-projects";
+  role === "operations_manager" ? "/operation-manager/code-projects" : "/employee/code-projects";
 
 /** Tell people work landed on their desk. Only the newly added ones. */
 const announceAssignment = async (project, addedIds, actorName) => {
@@ -239,7 +239,7 @@ const announceAssignment = async (project, addedIds, actorName) => {
  */
 const announceToAssignees = async (project, payload, { except } = {}) => {
   const skip = idOf(except);
-  const ids = [...(project.teamLeaders || []), ...(project.employees || [])].filter(
+  const ids = [...(project.operationsManagers || []), ...(project.employees || [])].filter(
     // Whoever did the thing does not need telling that they did it
     (id) => idOf(id) !== skip
   );
@@ -298,7 +298,7 @@ const newlyAdded = (before, next) => {
  *
  * What differs is what the uploader is allowed to say about it:
  *
- *   admin   anything. Their own project or none, any team leaders, any
+ *   admin   anything. Their own project or none, any operations managers, any
  *           employees, and the per-project permissions are theirs to set.
  *
  *   leader  it must belong to a project they run, they are the only team
@@ -348,7 +348,7 @@ export const createCodeProject = async (req, res) => {
 
       const ownsIt = await Project.exists({
         _id: req.body.project,
-        teamLeader: req.leader._id,
+        operationsManager: req.leader._id,
       });
       if (!ownsIt) {
         discardZip();
@@ -357,13 +357,13 @@ export const createCodeProject = async (req, res) => {
     }
 
     const [requestedLeaders, employees] = await Promise.all([
-      resolveStaff(parseIds(req.body.teamLeaders), "team_leader"),
+      resolveStaff(parseIds(req.body.operationsManagers), "operations_manager"),
       resolveStaff(parseIds(req.body.employees), "employee"),
     ]);
 
     // A leader is the only leader on what they uploaded — they cannot put the
     // workspace on somebody else's desk, and they are always on their own.
-    const teamLeaders = byLeader ? [req.leader._id] : requestedLeaders;
+    const operationsManagers = byLeader ? [req.leader._id] : requestedLeaders;
 
     // The workspace folder is named after the document id, so the record has to
     // exist before anything can be written to disk.
@@ -374,7 +374,7 @@ export const createCodeProject = async (req, res) => {
       zipStoredName: req.file.filename,
       zipOriginalName: req.file.originalname,
       zipSize: req.file.size,
-      teamLeaders,
+      operationsManagers,
       employees,
       // What assigned staff may do is the admin's call. A leader uploading
       // takes the defaults; the admin can change them afterwards.
@@ -433,7 +433,7 @@ export const createCodeProject = async (req, res) => {
     });
 
     // Only once the project is genuinely usable is it worth telling anyone
-    await announceAssignment(created, [...teamLeaders, ...employees].map(idOf), actor.name);
+    await announceAssignment(created, [...operationsManagers, ...employees].map(idOf), actor.name);
 
     const item = await withRefs(CodeProject.findById(created._id));
 
@@ -739,10 +739,10 @@ export const updateCodeProject = async (req, res) => {
     // re-saving the form must not notify everybody again.
     const added = [];
 
-    if (req.body.teamLeaders !== undefined) {
-      const next = await resolveStaff(parseIds(req.body.teamLeaders), "team_leader");
-      added.push(...newlyAdded(item.teamLeaders, next));
-      item.teamLeaders = next;
+    if (req.body.operationsManagers !== undefined) {
+      const next = await resolveStaff(parseIds(req.body.operationsManagers), "operations_manager");
+      added.push(...newlyAdded(item.operationsManagers, next));
+      item.operationsManagers = next;
     }
     if (req.body.employees !== undefined) {
       const next = await resolveStaff(parseIds(req.body.employees), "employee");

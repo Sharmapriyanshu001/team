@@ -6,7 +6,7 @@ export default function CodeShare() {
     <CodeShareBoard
       api={employeeApi}
       base="/employee"
-      subtitle="Send a code archive to your team leader or colleagues, and pick up what they send you"
+      subtitle="Send a code archive to your operations manager or colleagues, and pick up what they send you"
     />
   );
 }

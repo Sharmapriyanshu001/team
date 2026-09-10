@@ -28,6 +28,14 @@ const isImage = (type = "", name = "") =>
  * nothing under uploads/ is served without a token — a plain <a href> would
  * open a 401.
  */
+/**
+ * `api` and `docPath` are what let the HR panel reuse this.
+ *
+ * They default to the admin panel's, so every existing caller behaves exactly
+ * as it did — the alternative was a second copy of a component whose whole
+ * subtlety is the three-state distinction between "nothing on file", "stored"
+ * and "picked but not saved".
+ */
 export default function DocumentUpload({
   label,
   name,
@@ -37,6 +45,8 @@ export default function DocumentUpload({
   stored,
   recordId,
   resource,
+  api = adminApi,
+  docPath,
   onPick,
   error,
 }) {
@@ -73,8 +83,8 @@ export default function DocumentUpload({
     setOpening(true);
     setOpenError("");
     try {
-      const { data } = await adminApi.get(
-        `/admin/${resource}/${recordId}/documents/${name}`,
+      const { data } = await api.get(
+        docPath ? docPath(recordId, name) : `/admin/${resource}/${recordId}/documents/${name}`,
         { responseType: "blob" }
       );
       const url = URL.createObjectURL(data);

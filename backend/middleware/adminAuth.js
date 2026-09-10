@@ -1,12 +1,17 @@
 import jwt from "jsonwebtoken";
-import User, { ADMIN_ROLES } from "../models/User.js";
+import User, { ADMIN_PANEL_ROLES } from "../models/User.js";
 
 /**
- * Verify the bearer token and make sure the account is an admin.
+ * Verify the bearer token and make sure the account may use the admin panel.
  *
- * A super admin passes here too. Getting through this door is unchanged from
- * before — what a plain admin may then *do* is decided by requirePermission,
- * which is a separate question asked separately.
+ * A super admin passes here, and so does a department account — HR, Sales or
+ * Operations. Getting through this door has never been the same question as
+ * what somebody may then *do*, which is decided by the module guards; opening
+ * it to departments changes who reaches those guards, not what they allow.
+ *
+ * A department account is never unrestricted on the other side of it. See
+ * permissionsFor(), which resolves them against their department's access
+ * before the "no role assigned means everything" branch can be reached.
  */
 const adminAuth = async (req, res, next) => {
   try {
@@ -20,7 +25,7 @@ const adminAuth = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select("-password");
 
-    if (!user || !ADMIN_ROLES.includes(user.role)) {
+    if (!user || !ADMIN_PANEL_ROLES.includes(user.role)) {
       return res.status(403).json({ message: "Admin access only", code: "AUTH" });
     }
     if (user.status !== "active") {

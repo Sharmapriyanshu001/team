@@ -10,13 +10,13 @@ import useUnread from "../hooks/useUnread";
 
 export default function AdminLayout() {
   const admin = readStoredUser("admin");
-  const { can, isSuperAdmin } = usePermissions();
+  const { can, isSuperAdmin, isFullAdmin, departmentLabel } = usePermissions();
   const { unread } = useUnread();
 
   const { askSignOut, signOutDialog } = useSignOut({
     tokenKey: "adminToken",
     userKey: "admin",
-    loginPath: "/admin/login",
+    loginPath: "/",
     panel: "the admin panel",
   });
 
@@ -25,10 +25,17 @@ export default function AdminLayout() {
       <PanelLayout
         // Sections this account cannot reach are left out. The server refuses
         // them either way; this only avoids offering a door that will not open.
-        navItems={visibleNavItems(NAV_ITEMS, can)}
+        navItems={visibleNavItems(NAV_ITEMS, can, { isFullAdmin })}
         brand={{
           title: "JHA Admin",
-          subtitle: isSuperAdmin ? "Super Admin" : "Control Panel",
+          /**
+           * A department account signing in and being greeted as "Control
+           * Panel" is a small thing that makes a person wonder whether they
+           * are in the right place. Their department is named instead.
+           */
+          subtitle: isSuperAdmin
+            ? "Super Admin"
+            : departmentLabel || "Control Panel",
           icon: Building2,
         }}
         footer="JHA Company · v1.0"

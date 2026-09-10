@@ -15,7 +15,7 @@ const safeEmployee = (user, leader) => ({
   designation: user.designation,
   department: user.department,
   joiningDate: user.joiningDate,
-  teamLeader: leader ? { id: leader._id, name: leader.name, email: leader.email } : null,
+  operationsManager: leader ? { id: leader._id, name: leader.name, email: leader.email } : null,
 });
 
 const readFlags = async () => {

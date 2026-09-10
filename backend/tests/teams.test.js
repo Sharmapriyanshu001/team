@@ -54,7 +54,7 @@ describe("teams", () => {
     assert.equal(updated.role, "manager", "a department head is not an ordinary employee");
   });
 
-  test("a manager can sign in to the team leader panel", async () => {
+  test("a manager can sign in to the operations manager panel", async () => {
     const res = await api.post(
       "/api/leader/login",
       { email: salesHead.user.email, password: "test-password-1" },
@@ -68,19 +68,19 @@ describe("teams", () => {
     const team = await makeTeam({
       name: "Operations",
       kind: "operations",
-      teamLeaders: [devExec.user._id],
+      operationsManagers: [devExec.user._id],
       members: [devExec.user._id, salesExec.user._id],
     });
 
-    assert.equal(team.teamLeaders.length, 1);
+    assert.equal(team.operationsManagers.length, 1);
     assert.equal(team.members.length, 1, "the duplicate was dropped from members");
     assert.equal(String(team.members[0]._id), String(salesExec.user._id));
   });
 
-  test("being made a team leader promotes an employee", async () => {
+  test("being made an operations manager promotes an employee", async () => {
     const { default: User } = await import("../models/User.js");
     const updated = await User.findById(devExec.user._id);
-    assert.equal(updated.role, "team_leader");
+    assert.equal(updated.role, "operations_manager");
   });
 
   test("a manager is never demoted by being added as a member elsewhere", async () => {
@@ -345,15 +345,15 @@ describe("a manager does not fall through the cracks", () => {
       T()
     );
 
-    assert.equal(res.status, 400, "no Aadhaar, no account — the same rule team leaders follow");
+    assert.equal(res.status, 400, "no Aadhaar, no account — the same rule operations managers follow");
     assert.match(res.body.message, /Aadhaar/i);
   });
 
-  test("a team leader is not shown in the managers list", async () => {
+  test("an operations manager is not shown in the managers list", async () => {
     const res = await api.get("/api/admin/managers", T());
     assert.ok(!res.body.items.some((row) => row.name === "Developer"));
 
-    const leaders = await api.get("/api/admin/team-leaders", T());
+    const leaders = await api.get("/api/admin/operations-managers", T());
     assert.ok(leaders.body.items.some((row) => row.name === "Developer"));
   });
 });

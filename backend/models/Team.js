@@ -23,6 +23,20 @@ import mongoose from "mongoose";
 
 export const TEAM_KINDS = ["hr", "sales", "operations", "accounts", "marketing", "other"];
 
+/**
+ * "Not archived."
+ *
+ * `active` defaults to true on the schema, but a document written before the
+ * field existed does not carry it at all — and `{ active: true }` does not
+ * match a missing field. This database holds exactly such a team, written by
+ * an earlier build, and it was invisible to every screen that asked for
+ * active teams: the staff list, the HR overview, the teams board and the
+ * org chart all skipped it.
+ *
+ * Asking "is it not false" treats an absent field the way the schema says to.
+ */
+export const ACTIVE_TEAM = { active: { $ne: false } };
+
 const teamSchema = new mongoose.Schema(
   {
     name: { type: String, required: [true, "A name is required"], trim: true },
@@ -40,7 +54,7 @@ const teamSchema = new mongoose.Schema(
     manager: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
     /** Who runs the day to day. A small team may have none, and that is fine. */
-    teamLeaders: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    operationsManagers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
@@ -55,7 +69,7 @@ const teamSchema = new mongoose.Schema(
 teamSchema.methods.everyone = function everyone() {
   const ids = [
     this.manager,
-    ...(this.teamLeaders || []),
+    ...(this.operationsManagers || []),
     ...(this.members || []),
   ]
     .filter(Boolean)
@@ -66,7 +80,7 @@ teamSchema.methods.everyone = function everyone() {
 
 teamSchema.index({ kind: 1, active: 1 });
 teamSchema.index({ manager: 1 });
-teamSchema.index({ teamLeaders: 1 });
+teamSchema.index({ operationsManagers: 1 });
 teamSchema.index({ members: 1 });
 
 const Team = mongoose.model("Team", teamSchema);

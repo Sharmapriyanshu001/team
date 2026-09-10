@@ -196,7 +196,7 @@ export default function AccountDetail() {
         All ad accounts
       </Link>
 
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">{account.name}</h1>
           <p className="mt-1 text-sm text-slate-500">

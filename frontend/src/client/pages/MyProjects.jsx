@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Gauge, Mail, Phone } from "lucide-react";
 
 import { useCrud } from "../hooks/crud";
-import { initialsOf, money } from "../../shared/format";
+import { initialsOf } from "../../shared/format";
 import DataTable from "../../shared/components/DataTable";
 import Toolbar from "../../shared/components/Toolbar";
 import {
@@ -43,19 +43,19 @@ export default function MyProjects() {
       ),
     },
     {
-      key: "teamLeader",
+      key: "operationsManager",
       header: "Your contact",
       render: (row) =>
-        row.teamLeader ? (
+        row.operationsManager ? (
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-semibold text-white">
-              {initialsOf(row.teamLeader.name)}
+              {initialsOf(row.operationsManager.name)}
             </span>
             <div className="min-w-0 text-xs">
-              <p className="truncate font-medium text-slate-800">{row.teamLeader.name}</p>
+              <p className="truncate font-medium text-slate-800">{row.operationsManager.name}</p>
               <p className="flex items-center gap-1 truncate text-slate-400">
                 <Mail size={10} />
-                {row.teamLeader.email}
+                {row.operationsManager.email}
               </p>
             </div>
           </div>
@@ -74,7 +74,18 @@ export default function MyProjects() {
         </span>
       ),
     },
-    { key: "budget", header: "Value", render: (row) => money(row.budget) },
+    {
+      key: "remaining",
+      header: "Remaining",
+      render: (row) => {
+        const left = Math.max(0, (row.tasks || 0) - (row.tasksCompleted || 0));
+        return (
+          <span className={left ? "text-slate-700" : "text-green-700"}>
+            {left ? `${left} to go` : "All done"}
+          </span>
+        );
+      },
+    },
     {
       key: "endDate",
       header: "Target date",
@@ -136,15 +147,15 @@ export default function MyProjects() {
       </Card>
 
       {/* Contact card for the leads, so the client always has a phone number */}
-      {crud.rows.some((row) => row.teamLeader?.phone) && (
+      {crud.rows.some((row) => row.operationsManager?.phone) && (
         <Card className="mt-4 p-5">
           <p className="mb-3 text-sm font-semibold text-slate-900">Who to call</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[
               ...new Map(
                 crud.rows
-                  .filter((row) => row.teamLeader)
-                  .map((row) => [row.teamLeader._id, row.teamLeader])
+                  .filter((row) => row.operationsManager)
+                  .map((row) => [row.operationsManager._id, row.operationsManager])
               ).values(),
             ].map((leader) => (
               <div

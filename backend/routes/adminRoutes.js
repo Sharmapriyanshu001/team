@@ -3,26 +3,78 @@ import express from "express";
 
 import adminAuth from "../middleware/adminAuth.js";
 import { loginBurstLimiter, loginLimiter } from "../middleware/security.js";
-import { guard, guardAction, requireSuperAdmin } from "../middleware/permissions.js";
+import {
+  guard,
+  guardAction,
+  requireFullAdmin,
+  requireSuperAdmin,
+} from "../middleware/permissions.js";
 import {
   listAdministrators,
   updateAdministrator,
   roleIsInUse,
 } from "../controllers/administratorController.js";
 import { buildCrud, InvalidInput } from "../utils/crud.js";
+import {
+  removeStaff,
+  resolveLoginPassword,
+  staffCrudOptions,
+  staffDocument,
+} from "../utils/staffCrud.js";
 import { hashPassword } from "../utils/password.js";
 import { notifyUser } from "../utils/notify.js";
 
-import User from "../models/User.js";
+import User, { DEPARTMENT_ROLES } from "../models/User.js";
 import Client from "../models/Client.js";
 import Project from "../models/Project.js";
 import Task from "../models/Task.js";
 import Issue from "../models/Issue.js";
 import FileDoc from "../models/FileDoc.js";
 import ActivityLog from "../models/ActivityLog.js";
-import Role, { PERMISSION_MODULES, PERMISSION_ACTIONS } from "../models/Role.js";
+import Role, {
+  MODULE_DEPARTMENTS,
+  PERMISSION_ACTIONS,
+  PERMISSION_MODULES,
+} from "../models/Role.js";
 
 import { adminLogin, adminLogout, adminProfile } from "../controllers/adminController.js";
+import {
+  addInterview,
+  candidates,
+  decideLeave,
+  hireCandidate,
+  hrOverview,
+  leaveBalances,
+  leavePolicies,
+  leaves,
+  removeInterview,
+  updateInterview,
+} from "../controllers/hrController.js";
+import {
+  createDepartmentAccount,
+  departmentMeta,
+  getDepartmentAccount,
+  listDepartmentAccounts,
+  removeDepartmentAccount,
+  updateDepartmentAccount,
+} from "../controllers/departmentAccountController.js";
+import {
+  departmentPerformance,
+  myReports,
+  orgChart,
+  reportContext,
+  reportDetail,
+  reportInbox,
+  respondToReport,
+  reviewReport,
+  submitReport,
+  withdrawReport,
+} from "../controllers/reportChainController.js";
+import {
+  client360,
+  handOverClient,
+  pendingHandover,
+} from "../controllers/client360Controller.js";
 import {
   listNotifications,
   markNotificationRead,
@@ -125,7 +177,7 @@ import {
   credentialAccessLog,
 } from "../controllers/vaultController.js";
 import {
-  teamLeaderPerformance,
+  operationsManagerPerformance,
   employeePerformance,
 } from "../controllers/performanceController.js";
 import { staffDetails, clientDetails } from "../controllers/recordDetailController.js";
@@ -213,12 +265,33 @@ import {
   downloadSubmission,
 } from "../controllers/codeShareController.js";
 import { getReports } from "../controllers/reportController.js";
+import { taskLinkFor } from "../utils/taskLink.js";
+import { syncAssignments } from "../utils/projectTeam.js";
+import { logActivity } from "../utils/activity.js";
 import {
   getSettings,
   updateSettings,
   updateProfile,
   changePassword,
 } from "../controllers/settingsController.js";
+import {
+  projectPayments,
+  projectPaymentsOverview,
+} from "../controllers/projectPaymentController.js";
+import {
+  assignChangeRequest,
+  countNewChangeRequests,
+  getChangeRequest,
+  listChangeRequests,
+  updateChangeRequest,
+} from "../controllers/changeRequestController.js";
+import { bonusByProject, listBonuses } from "../controllers/bonusController.js";
+import {
+  addPayment as addSalaryPayment,
+  getSalary,
+  removePayment as removeSalaryPayment,
+  setDailyRate,
+} from "../controllers/salaryController.js";
 
 const router = express.Router();
 
@@ -257,11 +330,40 @@ router.use("/clients", guard("clients"));
 // Meetings are client meetings, so they answer to the same permission rather
 // than introducing a module every existing role would be missing
 router.use("/meetings", guard("clients"));
-router.use("/team-leaders", guard("team_leaders"));
-router.use("/managers", guard("team_leaders"));
+router.use("/operations-managers", guard("operations_managers"));
+router.use("/managers", guard("operations_managers"));
 router.use("/employees", guard("employees"));
+router.use("/staff", guard("employees"));
 router.use("/attendance", guard("employees"));
+/**
+ * HR's own two modules, kept apart from the employee directory.
+ *
+ * Being allowed to see who works here is not the same decision as being
+ * allowed to read everyone's leave reasons or the salary a candidate asked
+ * for, and rolling them together would have meant every manager who can open
+ * the staff list could open those too.
+ *
+ * The overview sits under "employees" because it is a headcount summary, and
+ * it is what an HR account lands on.
+ */
+router.use("/hr/overview", guard("employees"));
+router.use("/hr/leaves", guard("leaves"));
+router.use("/hr/leave-policies", guard("leaves"));
+router.use("/hr/candidates", guard("recruitment"));
+/**
+ * The department logins themselves. Guarded by module like everything else and
+ * then closed to department accounts outright — an account that can mint
+ * accounts can grant itself any module, so a role is not enough here.
+ */
+router.use("/department-accounts", guard("department_accounts"), requireFullAdmin);
 router.use("/projects", guard("projects"));
+/**
+ * Client change requests sit under the projects module rather than earning one
+ * of their own: a request is a thing that happens to a project, and anybody
+ * who may not see the project has no business reading what its client asked
+ * for. Splitting them would mean two answers to one question.
+ */
+router.use("/change-requests", guard("projects"));
 router.use("/tasks", guard("tasks"));
 router.use("/chat", guard("chat"));
 router.use("/issues", guard("issues"));
@@ -274,6 +376,16 @@ router.use("/code", guard("code"));
 router.use("/play", guard("play_console"));
 router.use("/seo", guard("seo"));
 router.use("/crm", guard("crm"));
+/**
+ * Project money sits behind the CRM permission, not the projects one.
+ *
+ * Somebody who runs delivery needs the project; they do not thereby need the
+ * client's GST number, the payment references or what is still owed. The two
+ * are separate decisions, so they are separate modules — and this route exists
+ * in no other panel's router, which is what keeps it out of reach of Sales,
+ * HR, an operations manager and the client rather than merely refused to them.
+ */
+router.use("/project-payments", guard("crm"));
 router.use("/ads", guard("ads"));
 router.use("/portfolio", guard("portfolio"));
 router.use("/teams", guard("teams"));
@@ -281,7 +393,11 @@ router.use("/targets", guard("teams"));
 router.use("/vault", guard("vault"));
 router.use("/reports", guard("reports"));
 router.use("/activity-logs", guard("activity_logs"));
-router.use("/roles", guard("roles"));
+// Editing the roles is editing what everybody may do, so it is closed to
+// department accounts however wide their own role happens to be. The module
+// guard would already refuse them; this makes it impossible to grant by
+// mistake from the role editor itself.
+router.use("/roles", guard("roles"), requireFullAdmin);
 router.use("/settings", guard("settings"));
 
 router.get("/dashboard", getDashboard);
@@ -289,162 +405,39 @@ router.get("/insights/:metric", getInsight);
 
 /* --------------------------------------------------------------- helpers */
 
-// Staff (team leaders + employees) share the User model, so both reuse this.
-const staffBeforeSave = (payload) => {
-  const data = { ...payload };
-
-  // The password is hashed by the caller once it has been resolved
-  delete data.password;
-
-  // Empty strings from <select> inputs must not be cast to ObjectId
-  if (!data.reportsTo) delete data.reportsTo;
-
-  return data;
-};
-
 /**
- * The login password is the person's mobile number unless the admin types a
- * different one. That keeps the credentials easy to hand over, and the form
- * shows exactly what they will be.
+ * Staff helpers live in utils/staffCrud.js because the HR panel manages the
+ * same people from its own routes. See that file for why they are shared
+ * rather than copied.
  */
-const resolveLoginPassword = (payload, existing, label) => {
-  const custom = (payload.password || "").trim();
-  const phone = (payload.phone ?? existing?.phone ?? "").trim();
-
-  if (custom) {
-    if (custom.length < 6) {
-      throw new InvalidInput("Password must be at least 6 characters");
-    }
-    return custom;
-  }
-
-  // No custom password: fall back to the mobile number
-  if (!existing) {
-    if (!phone) {
-      throw new InvalidInput(`Enter a mobile number — it becomes the ${label}'s login password`);
-    }
-    if (phone.replace(/\D/g, "").length < 6) {
-      throw new InvalidInput("Mobile number looks too short to use as a password");
-    }
-    return phone;
-  }
-
-  // On an update, leave the existing password alone unless the phone changed
-  if (payload.phone !== undefined && payload.phone !== existing.phone && phone) {
-    return phone;
-  }
-  return null;
-};
-
-const STAFF_LABELS = {
-  manager: { label: "manager", entity: "Manager" },
-  team_leader: { label: "team leader", entity: "Team Leader" },
-  employee: { label: "employee", entity: "Employee" },
-};
-
-const staffCrudOptions = (role) => {
-  const { label, entity } = STAFF_LABELS[role] || STAFF_LABELS.employee;
-
-  return {
-    entity,
-    searchFields: ["name", "email", "designation", "department", "phone"],
-    filterFields: ["status", "department"],
-    scope: { role },
-    createDefaults: { role },
-    // A list of staff is a table of names and departments. Nobody reading one
-    // needs the whole company's Aadhaar numbers and bank accounts in their
-    // browser, so those three sub-documents are left out of it and fetched
-    // only when one person is actually opened.
-    select: "-password -documents -bank -previousEmployment",
-    selectOne: "-password",
-    populate: [{ path: "reportsTo", select: "name email" }],
-    sort: { createdAt: -1 },
-    beforeSave: (payload, req, existing) => {
-      const password = resolveLoginPassword(payload, existing, label);
-      const { data: withPapers, orphaned } = applyStaffPaperwork(payload, req, existing);
-      const data = staffBeforeSave(withPapers);
-
-      if (password) {
-        data.password = hashPassword(password);
-      // A reset is usually done because the old password should stop working
-      // — the person was locked out, or it leaked. Leaving their live tokens
-      // alone would make the reset cosmetic for another seven days.
-      data.tokenVersion = (existing?.tokenVersion || 0) + 1;
-      }
-      data.role = role;
-
-      // Documents this save replaced. Removed only once the record itself has
-      // been written, so a failed save never takes the old file with it.
-      if (orphaned.length) {
-        req.res?.on("finish", () => {
-          if (req.res.statusCode < 400) orphaned.forEach(removeStoredFile);
-        });
-      }
-
-      return data;
-    },
-  };
-};
-
-/**
- * Serving one of a member of staff's documents back.
- *
- * Nothing under uploads/ is reachable without going through a route, which is
- * what makes this the only way to see somebody's Aadhaar scan — and why it is
- * mounted behind the same permission guard as the rest of their record rather
- * than being a link the browser could follow on its own.
- */
-const staffDocument = (role) => async (req, res) => {
-  try {
-    const user = await User.findOne({ _id: req.params.id, role }).select(
-      "documents previousEmployment"
-    );
-    if (!user) return res.status(404).json({ message: "Not found" });
-
-    const file = findPaperwork(user, req.params.field);
-    const target = file && storedPath(file.storedName);
-    if (!target) return res.status(404).json({ message: "That document is not on file" });
-
-    res.setHeader("Content-Type", file.mimeType || "application/octet-stream");
-    // Shown in a tab rather than pushed to the downloads folder: the admin is
-    // usually checking a card against a form, not collecting files.
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="${(file.originalName || req.params.field).replace(/"/g, "")}"`
-    );
-
-    const stream = fs.createReadStream(target);
-    stream.on("error", (err) => {
-      console.error("staffDocument stream error:", err.message);
-      if (!res.headersSent) res.status(500).json({ message: "Could not read that document" });
-    });
-    return stream.pipe(res);
-  } catch (err) {
-    if (err.name === "CastError") return res.status(404).json({ message: "Not found" });
-    console.error("staffDocument error:", err);
-    return res.status(500).json({ message: "Server error" });
-  }
-};
-
-/** Deleting the person takes their paperwork off the disk with them. */
-const removeStaff = (role, crud) => async (req, res) => {
-  const existing = await User.findOne({ _id: req.params.id, role }).select(
-    "documents previousEmployment"
-  );
-  const files = existing ? paperworkFiles(existing) : [];
-
-  res.on("finish", () => {
-    if (res.statusCode < 400) files.forEach(removeStoredFile);
-  });
-
-  return crud.remove(req, res);
-};
 
 // Strip empty ObjectId-ish fields so Mongoose does not throw a CastError.
 const cleanRefs = (fields) => (payload) => {
   const data = { ...payload };
   fields.forEach((field) => {
     if (data[field] === "" || data[field] === null) delete data[field];
+  });
+  return data;
+};
+
+/**
+ * A reference somebody is allowed to remove.
+ *
+ * cleanRefs deletes an empty value rather than writing it, which is right on a
+ * create — an unfilled <select> must not be cast to an ObjectId — and wrong on
+ * an edit, where clearing the field is the whole intent. Deleting it there
+ * means the update simply leaves the old value in place, so the link comes
+ * back and the person who cleared it is not told.
+ *
+ * This says the difference explicitly: on an update, an empty value that was
+ * actually sent becomes null.
+ */
+const clearOnUpdate = (data, payload, existing, fields) => {
+  if (!existing) return data;
+
+  fields.forEach((field) => {
+    const sent = payload[field];
+    if (sent === "" || sent === null) data[field] = null;
   });
   return data;
 };
@@ -457,8 +450,17 @@ const clients = buildCrud(Client, {
   filterFields: ["status"],
   select: "-password",
   // The portal password is the client's mobile number unless one is typed in
+  populate: [{ path: "previousProject", select: "name code status endDate" }],
   beforeSave: (payload, req, existing) => {
-    const data = { ...payload };
+    // An empty <select> must not be cast to an ObjectId
+    // An empty <select> must not be cast to an ObjectId on a create — but on
+    // an edit, answering "no" after "yes" has to actually remove the link
+    const data = clearOnUpdate(
+      cleanRefs(["previousProject"])(payload),
+      payload,
+      existing,
+      ["previousProject"]
+    );
     const password = resolveLoginPassword(payload, existing, "client");
 
     if (password) {
@@ -475,6 +477,27 @@ const clients = buildCrud(Client, {
 
 router.get("/clients", clients.list);
 router.post("/clients", clients.create);
+
+/**
+ * Won, and nobody in Operations has picked it up. Declared above "/:id" so
+ * that path is not read as a client id — the same reason every other named
+ * sub-path in this file sits where it does.
+ */
+router.get("/clients/pending-handover", pendingHandover);
+
+/** Everything about one client, from every department at once. */
+router.get("/clients/:id/360", client360);
+
+/**
+ * Sales hands the client to Operations.
+ *
+ * A PUT rather than a POST on purpose: the group guard above turns the verb
+ * into the permission it demands, and this changes an existing client rather
+ * than creating one. As a POST it would ask for "create clients" and tell
+ * somebody who pressed Hand over that they may not add clients.
+ */
+router.put("/clients/:id/handover", handOverClient);
+
 router.get("/clients/:id/details", clientDetails);
 router.get("/clients/:id", clients.getOne);
 router.put("/clients/:id", clients.update);
@@ -487,12 +510,12 @@ router.get("/meetings", listMeetings);
 router.post("/meetings/:id/link", regenerateLink);
 router.put("/meetings/:id", updateMeeting);
 
-/* --------------------------------------------------------- team leaders */
+/* --------------------------------------------------------- operations managers */
 
-const teamLeaders = buildCrud(User, staffCrudOptions("team_leader"));
+const operationsManagers = buildCrud(User, staffCrudOptions("operations_manager"));
 
-router.get("/team-leaders/performance", teamLeaderPerformance);
-router.get("/team-leaders", teamLeaders.list);
+router.get("/operations-managers/performance", operationsManagerPerformance);
+router.get("/operations-managers", operationsManagers.list);
 
 /**
  * The add form sends four steps at once, so these two take multipart: the
@@ -501,32 +524,32 @@ router.get("/team-leaders", teamLeaders.list);
  * posted to these before has to change.
  */
 router.post(
-  "/team-leaders",
+  "/operations-managers",
   uploadStaffDocuments,
   discardUploadsIfRefused,
-  teamLeaders.create
+  operationsManagers.create
 );
 
-router.get("/team-leaders/:id/details", staffDetails("team_leader"));
-router.get("/team-leaders/:id/documents/:field", staffDocument("team_leader"));
-router.get("/team-leaders/:id", teamLeaders.getOne);
+router.get("/operations-managers/:id/details", staffDetails("operations_manager"));
+router.get("/operations-managers/:id/documents/:field", staffDocument("operations_manager"));
+router.get("/operations-managers/:id", operationsManagers.getOne);
 
 router.put(
-  "/team-leaders/:id",
+  "/operations-managers/:id",
   uploadStaffDocuments,
   discardUploadsIfRefused,
-  teamLeaders.update
+  operationsManagers.update
 );
 
-router.delete("/team-leaders/:id", removeStaff("team_leader", teamLeaders));
+router.delete("/operations-managers/:id", removeStaff("operations_manager", operationsManagers));
 
 /* -------------------------------------------------------------- managers */
 
 /**
- * Department heads. The same record and the same form as a team leader —
+ * Department heads. The same record and the same form as an operations manager —
  * what differs is what they answer for, not what is on file about them.
  *
- * Guarded by the team_leaders module rather than one of its own: both are
+ * Guarded by the operations_managers module rather than one of its own: both are
  * senior staff, and a role allowed to manage one and not the other would be a
  * distinction nobody asked for.
  *
@@ -553,10 +576,30 @@ const employees = buildCrud(User, staffCrudOptions("employee"));
 router.get("/employees/performance", employeePerformance);
 router.get("/employees", employees.list);
 
-// Same four-step form, same paperwork — see the team leader routes above
+// Same four-step form, same paperwork — see the operations manager routes above
 router.post("/employees", uploadStaffDocuments, discardUploadsIfRefused, employees.create);
 
 router.get("/employees/:id/details", staffDetails("employee"));
+
+/* ---------------------------------------------------------------- salary */
+
+/**
+ * What a day of somebody's work is worth, what the attendance sheet says they
+ * have earned, and what has actually been handed over.
+ *
+ * Earnings are computed from the sheet on every read rather than stored — see
+ * utils/salary.js — so correcting a day corrects the wage bill. Only the daily
+ * rate and the individual payments are written down.
+ *
+ * Mounted here and in the HR panel and nowhere else. An operations
+ * manager knowing what their team is paid changes a working relationship, and
+ * that is a decision for the company rather than a side effect of a route.
+ */
+router.get("/staff/:id/salary", getSalary);
+router.put("/staff/:id/salary/rate", setDailyRate);
+router.post("/staff/:id/salary/payments", addSalaryPayment);
+router.delete("/staff/:id/salary/payments/:paymentId", removeSalaryPayment);
+
 router.get("/employees/:id/documents/:field", staffDocument("employee"));
 router.get("/employees/:id", employees.getOne);
 
@@ -570,28 +613,273 @@ router.get("/attendance/summary", getAttendanceSummary);
 router.get("/attendance", getAttendanceSheet);
 router.post("/attendance", saveAttendance);
 
+/* ------------------------------------------------------------------- HR */
+
+/**
+ * Leave, and hiring.
+ *
+ * Both of these had real rows sitting in this database and no code in this
+ * build that could read them — an earlier version wrote them and left no
+ * models behind. The models match those documents field for field rather than
+ * being designed fresh, so the applications and candidates already on file
+ * turn up here instead of being stranded.
+ */
+
+router.get("/hr/overview", hrOverview);
+
+// Named sub-paths ahead of "/:id" so neither is read as an id
+router.get("/hr/leaves/balances", leaveBalances);
+router.get("/hr/leaves", leaves.list);
+router.post("/hr/leaves", leaves.create);
+/**
+ * Deciding is its own route rather than a field on the edit, because it is the
+ * one change that has to record who made it — and a PUT, so the group guard
+ * asks for "edit leaves" rather than "create".
+ */
+router.put("/hr/leaves/:id/decide", decideLeave);
+router.get("/hr/leaves/:id", leaves.getOne);
+router.put("/hr/leaves/:id", leaves.update);
+router.delete("/hr/leaves/:id", leaves.remove);
+
+router.get("/hr/leave-policies", leavePolicies.list);
+router.post("/hr/leave-policies", leavePolicies.create);
+router.get("/hr/leave-policies/:id", leavePolicies.getOne);
+router.put("/hr/leave-policies/:id", leavePolicies.update);
+router.delete("/hr/leave-policies/:id", leavePolicies.remove);
+
+router.get("/hr/candidates", candidates.list);
+router.post("/hr/candidates", candidates.create);
+/**
+ * Hiring creates a staff account with a login, which is why it is a route and
+ * not a stage the edit form can set — see hrController, which refuses the
+ * stage on a plain update for exactly that reason.
+ */
+/** Multipart for the same reason as the HR panel's copy: the CV comes with it. */
+router.post(
+  "/hr/candidates/:id/hire",
+  uploadStaffDocuments,
+  discardUploadsIfRefused,
+  hireCandidate
+);
+router.post("/hr/candidates/:id/interviews", addInterview);
+router.put("/hr/candidates/:id/interviews/:interviewId", updateInterview);
+router.delete("/hr/candidates/:id/interviews/:interviewId", removeInterview);
+router.get("/hr/candidates/:id", candidates.getOne);
+router.put("/hr/candidates/:id", candidates.update);
+router.delete("/hr/candidates/:id", candidates.remove);
+
+/* --------------------------------------------------- department accounts */
+
+/**
+ * The HR, Sales and Operations logins.
+ *
+ * Deliberately no ceiling on how many of each may exist: ten HR accounts is
+ * ten people who each answer for what they did, and one shared HR login is an
+ * audit trail that never names anybody.
+ */
+
+router.get("/department-accounts/meta", departmentMeta);
+router.get("/department-accounts", listDepartmentAccounts);
+router.post("/department-accounts", createDepartmentAccount);
+router.get("/department-accounts/:id", getDepartmentAccount);
+router.put("/department-accounts/:id", updateDepartmentAccount);
+router.delete("/department-accounts/:id", removeDepartmentAccount);
+
 /* -------------------------------------------------------------- projects */
+
+/* ------------------------------------- "have we built this before?" */
+
+const HAS_SCHEME = /^https?:\/\//i;
+// "acme.com", "acme.co.uk/portal", "sub.acme.dev?ref=1" — a paste with the
+// scheme left off, which is what a browser address bar hands over these days
+const LOOKS_LIKE_HOST = /^[\w-]+(\.[\w-]+)+([/?#]|$)/;
+
+/**
+ * The answer given while a project is being created, and the link behind it.
+ *
+ * Three rules, all of them about the answer still meaning something a year
+ * later:
+ *
+ *   a "yes" must carry a link      otherwise it is a note to nobody
+ *   a "no" clears the link         so an answer changed from yes to no does
+ *                                  not leave last week's URL sitting under it
+ *   a link is stored usable        "acme.com" pasted from an address bar is
+ *                                  stored as "https://acme.com", because a
+ *                                  link that cannot be clicked is a string
+ *
+ * A path is allowed through as it is: somebody linking to another project on
+ * this panel pastes "/admin/projects/<id>", and turning that into a hostname
+ * would break it.
+ *
+ * Returns undefined when the request said nothing about it, which is how an
+ * edit of any other field leaves the answer alone.
+ */
+const readExistingWork = (raw) => {
+  if (raw === undefined || raw === null) return undefined;
+
+  const asked = raw.builtBefore;
+  const builtBefore =
+    asked === true || asked === "true" ? true : asked === false || asked === "false" ? false : null;
+
+  const link = String(raw.link || "").trim();
+  const note = String(raw.note || "").trim();
+
+  if (builtBefore !== true) return { builtBefore, link: "", note };
+
+  if (!link) {
+    throw new InvalidInput("Paste the link to what was built before, or answer No");
+  }
+
+  const usable = HAS_SCHEME.test(link) || link.startsWith("/")
+    ? link
+    : LOOKS_LIKE_HOST.test(link)
+      ? `https://${link}`
+      : "";
+
+  if (!usable) {
+    throw new InvalidInput("That does not look like a link — paste the full address");
+  }
+
+  return { builtBefore: true, link: usable, note };
+};
 
 const projects = buildCrud(Project, {
   entity: "Project",
   searchFields: ["name", "code", "description"],
-  filterFields: ["status", "priority", "client", "teamLeader"],
+  filterFields: ["status", "priority", "client", "operationsManager"],
   populate: [
     { path: "client", select: "name company" },
-    { path: "teamLeader", select: "name email designation" },
+    { path: "operationsManager", select: "name email designation" },
     { path: "members", select: "name email designation" },
+    // What this job continues from, so the list and the detail can say so
+    { path: "previousProject", select: "name code status endDate" },
   ],
-  beforeSave: cleanRefs(["client", "teamLeader", "startDate", "endDate"]),
-  // Tell a team leader when a project lands on their desk
-  afterSave: (project, req, { isNew, previous }) => {
-    const changedLeader = String(previous?.teamLeader || "") !== String(project.teamLeader || "");
-    if (!project.teamLeader || (!isNew && !changedLeader)) return;
 
-    notifyUser(project.teamLeader, {
-      type: "project",
-      title: isNew ? "New project assigned" : "You now lead this project",
-      message: `"${project.name}" — ${project.status.replace(/_/g, " ")}`,
-      link: "/team-leader/projects/active",
+  /**
+   * A new project inherits the client's "we built for them before" answer.
+   *
+   * That answer is given once, on the client record, and this is what makes it
+   * mean something afterwards — otherwise an admin would have to remember it
+   * and re-select the old job on every project they create for that client,
+   * which is exactly the sort of thing that gets done for the first project
+   * and forgotten by the third.
+   *
+   * Only on create, and only when the request has not said otherwise: a
+   * project can be pointed at a different predecessor, or at none, and an edit
+   * that clears the link must not have it silently put back.
+   */
+  beforeSave: async (payload, req, existing) => {
+    const data = clearOnUpdate(
+      cleanRefs(["client", "operationsManager", "startDate", "endDate", "previousProject"])(payload),
+      payload,
+      existing,
+      ["previousProject"]
+    );
+
+    if (!existing && data.previousProject === undefined && data.client) {
+      const client = await Client.findById(data.client).select("previousProject");
+      if (client?.previousProject) data.previousProject = client.previousProject;
+    }
+
+    // Left alone when the request said nothing about it, so editing a budget
+    // cannot wipe the answer
+    const existingWork = readExistingWork(payload.existingWork);
+    if (existingWork !== undefined) data.existingWork = existingWork;
+
+    return data;
+  },
+  /**
+   * Tell everybody whose project this just became — or stopped being.
+   *
+   * The leader has always been told. The members never were: an admin adding
+   * three people to a project from Assign Team sent nothing to any of them,
+   * and the only way they found out was noticing a new project in their list.
+   * The leader's own assign flow has always notified and always written down
+   * who did the adding; this brings the admin's path in line with it.
+   */
+  afterSave: async (project, req, { isNew, previous }) => {
+    const actor = req.admin || req.hr;
+
+    /* ----------------------------------------------------------- the lead */
+
+    const changedLeader = String(previous?.operationsManager || "") !== String(project.operationsManager || "");
+
+    if (project.operationsManager && (isNew || changedLeader)) {
+      notifyUser(project.operationsManager, {
+        type: "project",
+        title: isNew ? "New project assigned" : "You now lead this project",
+        message: `"${project.name}" — ${project.status.replace(/_/g, " ")}`,
+        link: "/operation-manager/projects/active",
+      });
+    }
+
+    /* -------------------------------------------------------- the members */
+
+    const before = new Set((previous?.members || []).map(String));
+    const now = new Set((project.members || []).map(String));
+
+    const added = [...now].filter((id) => !before.has(id));
+    const removed = [...before].filter((id) => !now.has(id));
+
+    if (!added.length && !removed.length) return;
+
+    added.forEach((id) =>
+      notifyUser(id, {
+        type: "project",
+        title: "You have been added to a project",
+        message: `"${project.name}" — ${project.status.replace(/_/g, " ")}`,
+        link: "/employee/projects/active",
+      })
+    );
+
+    removed.forEach((id) =>
+      notifyUser(id, {
+        type: "project",
+        title: "You have been taken off a project",
+        message: `"${project.name}"`,
+        link: "/employee/projects/active",
+      })
+    );
+
+    /**
+     * And who did it, kept on the project itself.
+     *
+     * Written after the save rather than in beforeSave so it reads the
+     * membership that was actually stored, and saved on its own so a failure
+     * here cannot lose the assignment the admin just made.
+     */
+    /**
+     * Run on a removal too, not only on an addition.
+     *
+     * `syncAssignments` drops records for people no longer on the project as
+     * well as writing new ones — gating it on `added.length` meant taking
+     * somebody off left their record behind, so the project went on saying
+     * who had assigned a person who was not on it any more.
+     * Unconditional here because the early return above already established
+     * that the membership changed one way or the other.
+     */
+    await Project.updateOne(
+      { _id: project._id },
+      {
+        $set: {
+          memberAssignments: syncAssignments(
+            previous?.memberAssignments || [],
+            project.members || [],
+            actor
+          ),
+        },
+      }
+    ).catch((err) => console.error("project assignment record error:", err.message));
+
+    logActivity(req, {
+      action: "updated",
+      entity: "Project",
+      entityId: project._id,
+      message: `${actor?.name || "An admin"} ${
+        added.length ? `added ${added.length} ` : ""
+      }${added.length && removed.length ? "and " : ""}${
+        removed.length ? `removed ${removed.length} ` : ""
+      }on "${project.name}"`,
     });
   },
 });
@@ -603,19 +891,57 @@ router.get("/projects/:id", projects.getOne);
 router.put("/projects/:id", projects.update);
 router.delete("/projects/:id", projects.remove);
 
+/* ------------------------------------------------------------- bonuses */
+
+/**
+ * Money promised on individual tasks, and whether it was earned. Under the
+ * tasks module rather than CRM: it is a cost of doing the work and belongs to
+ * whoever runs the work, unlike the client's invoices.
+ */
+router.get("/bonuses/projects", bonusByProject);
+router.get("/bonuses", listBonuses);
+
+/* ------------------------------------------------------ project payments */
+
+/**
+ * What each project is worth, what has been billed, and what has come in.
+ * Assembled from the invoices rather than stored on the project — see
+ * controllers/projectPaymentController.js for why those are different numbers.
+ */
+router.get("/project-payments", projectPaymentsOverview);
+router.get("/project-payments/:id", projectPayments);
+
+/* ------------------------------------------------------- change requests */
+
+/**
+ * Everything every client has asked to be changed, and the whole history of
+ * each — which is what "the admin can monitor it" has to mean if it is to be
+ * worth anything. The same handlers the client, employee and leader panels
+ * use; the scope they get is the difference, and it is decided from the token
+ * rather than the route. See controllers/changeRequestController.js.
+ */
+router.get("/change-requests/new-count", countNewChangeRequests);
+router.get("/change-requests", listChangeRequests);
+router.get("/change-requests/:id", getChangeRequest);
+router.put("/change-requests/:id", updateChangeRequest);
+router.put("/change-requests/:id/assign", assignChangeRequest);
+
 /* ----------------------------------------------------------------- tasks */
 
 const tasks = buildCrud(Task, {
   entity: "Task",
   searchFields: ["title", "description"],
-  filterFields: ["status", "priority", "project", "assignedTo"],
+  // Department work is filterable the same way a project's is — that is the
+  // whole point of the admin seeing both
+  filterFields: ["status", "priority", "project", "team", "assignedTo"],
   populate: [
     { path: "project", select: "name code" },
+    { path: "team", select: "name kind" },
     { path: "assignedTo", select: "name email designation" },
   ],
   label: (doc) => doc?.title,
   beforeSave: (payload, req, existing) => {
-    const data = cleanRefs(["project", "assignedTo", "assignedBy", "dueDate"])(payload);
+    const data = cleanRefs(["project", "team", "assignedTo", "assignedBy", "dueDate"])(payload);
     // Whoever is signed in is the one handing the work out
     if (!data.assignedBy) data.assignedBy = req.admin._id;
 
@@ -643,7 +969,7 @@ const tasks = buildCrud(Task, {
     return {};
   },
   afterSave: async (task, req, { isNew, previous }) => {
-    // Work handed to someone has to reach them, whether they are a team leader
+    // Work handed to someone has to reach them, whether they are an operations manager
     // or an employee — the panel they land on depends on their role.
     const changedAssignee =
       String(previous?.assignedTo || "") !== String(task.assignedTo || "");
@@ -659,10 +985,7 @@ const tasks = buildCrud(Task, {
           type: "task",
           title: isNew ? "New task assigned to you" : "A task was reassigned to you",
           message: `"${task.title}"${project ? ` on ${project.name}` : ""}`,
-          link:
-            assignee.role === "team_leader"
-              ? "/team-leader/tasks/pending"
-              : "/employee/tasks/pending",
+          link: taskLinkFor(assignee.role),
         });
       }
     }
@@ -670,14 +993,14 @@ const tasks = buildCrud(Task, {
     // A task moving into review needs the project's leader to sign it off
     if (task.status !== "review" || previous?.status === "review") return;
 
-    const project = await Project.findById(task.project).select("name teamLeader");
-    if (!project?.teamLeader) return;
+    const project = await Project.findById(task.project).select("name operationsManager");
+    if (!project?.operationsManager) return;
 
-    notifyUser(project.teamLeader, {
+    notifyUser(project.operationsManager, {
       type: "review",
       title: "Work waiting for review",
       message: `"${task.title}" on ${project.name}`,
-      link: "/team-leader/daily-review",
+      link: "/operation-manager/daily-review",
     });
   },
 });
@@ -704,14 +1027,14 @@ const issues = buildCrud(Issue, {
   afterSave: async (issue, req, { isNew }) => {
     if (!isNew || !issue.project) return;
 
-    const project = await Project.findById(issue.project).select("name teamLeader");
-    if (!project?.teamLeader) return;
+    const project = await Project.findById(issue.project).select("name operationsManager");
+    if (!project?.operationsManager) return;
 
-    notifyUser(project.teamLeader, {
+    notifyUser(project.operationsManager, {
       type: "issue",
       title: `New ${issue.severity} issue`,
       message: `"${issue.title}" on ${project.name}`,
-      link: "/team-leader/issues",
+      link: "/operation-manager/issues",
     });
   },
 });
@@ -786,7 +1109,7 @@ router.post("/code-projects", uploadZip, createCodeProject);
 router.get("/code-projects", listCodeProjects);
 
 /**
- * The request queue: what team leaders and employees have asked the admin to
+ * The request queue: what operations managers and employees have asked the admin to
  * change or remove. Approving is the only thing in the app that turns one of
  * those asks into a change — and each handler asks for the permission the act
  * needs rather than the one the verb implies, because approving a delete
@@ -886,6 +1209,29 @@ router.put("/notifications/:id/read", markNotificationRead);
 
 /* --------------------------------------------------------------- reports */
 
+
+/* ------------------------------------------------------- the reporting chain */
+
+/**
+ * The top of the chain: Team Member → Manager → HR → Admin.
+ *
+ * An administrator reads every HR report and answers it, and can follow any
+ * one of them down to the individual week that produced a figure. The same
+ * handlers serve all four panels — see controllers/reportChainController.js.
+ *
+ * Guarded as "reports", the module the existing Reports screen already uses,
+ * so an admin who can see reports can see these and no new grant is needed.
+ */
+router.get("/reports/chain/context", reportContext);
+router.get("/reports/chain/mine", myReports);
+router.get("/reports/chain/inbox", reportInbox);
+router.get("/reports/chain/departments", departmentPerformance);
+router.get("/reports/chain/org", orgChart);
+router.post("/reports/chain", submitReport);
+router.put("/reports/chain/:id/review", reviewReport);
+router.put("/reports/chain/:id/respond", respondToReport);
+router.get("/reports/chain/:id", reportDetail);
+router.delete("/reports/chain/:id", withdrawReport);
 router.get("/reports", getReports);
 
 /* --------------------------------------------------------- activity logs */
@@ -926,7 +1272,13 @@ const roles = buildCrud(Role, {
 });
 
 router.get("/roles/meta", (req, res) =>
-  res.status(200).json({ modules: PERMISSION_MODULES, actions: PERMISSION_ACTIONS })
+  res.status(200).json({
+    modules: PERMISSION_MODULES,
+    actions: PERMISSION_ACTIONS,
+    // Which department each module belongs to, so the role editor can group
+    // twenty-five checkboxes into the four headings a person thinks in
+    departments: MODULE_DEPARTMENTS,
+  })
 );
 router.get("/roles", roles.list);
 router.post("/roles", roles.create);
@@ -975,7 +1327,7 @@ router.get("/lookups", async (req, res) => {
        * to a task, a lead, or another team.
        */
       User.find({ role: "manager" }).select("name designation").sort({ name: 1 }),
-      User.find({ role: "team_leader" }).select("name designation").sort({ name: 1 }),
+      User.find({ role: "operations_manager" }).select("name designation").sort({ name: 1 }),
       // reportsTo lets the Assign Team screen flag members who sit under a
       // different leader — that leader could not give them work.
       User.find({ role: "employee" })
@@ -985,19 +1337,42 @@ router.get("/lookups", async (req, res) => {
       // The team travels with the project so the task form can offer only the
       // people who are actually on it.
       Project.find()
-        .select("name code teamLeader members")
-        .populate("teamLeader", "name designation")
+        .select("name code operationsManager members")
+        .populate("operationsManager", "name designation")
         .populate("members", "name designation")
         .sort({ name: 1 }),
     ]);
 
+    /**
+     * Department accounts belong in `staff` for the same reason managers were
+     * added to it: the moment somebody is made an HR or Sales account they
+     * would otherwise vanish from every dropdown in the panel — unassignable
+     * to a task, a lead or a candidate, despite being a person who works here.
+     *
+     * They are also returned on their own, because the handover form needs to
+     * offer Operations specifically rather than everybody.
+     */
+    const departmentList = await User.find({ role: { $in: DEPARTMENT_ROLES }, status: "active" })
+      .select("name designation role")
+      .sort({ name: 1 });
+
+    const operationsStaff = [
+      ...departmentList.filter((person) => person.role === "operations"),
+      ...managerList,
+      ...leaderList,
+    ];
+
     return res.status(200).json({
       clients: clientList,
       managers: managerList,
-      teamLeaders: leaderList,
+      operationsManagers: leaderList,
       employees: employeeList,
       projects: projectList,
-      staff: [...managerList, ...leaderList, ...employeeList],
+      departmentAccounts: departmentList,
+      // Who a client can be handed over to: Operations accounts, then the
+      // managers and operations managers who actually run delivery
+      operationsStaff,
+      staff: [...departmentList, ...managerList, ...leaderList, ...employeeList],
     });
   } catch (err) {
     console.error("lookups error:", err);

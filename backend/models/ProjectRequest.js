@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 /**
- * A team leader or employee asking the admin to change or remove a code
+ * An operations manager or employee asking the admin to change or remove a code
  * project.
  *
  * The panels those two work in have no route that edits a project's details,

@@ -61,7 +61,7 @@ export const consoles = buildCrud(DeveloperConsole, {
   filterFields: ["status", "ownership", "client"],
   populate: [
     { path: "client", select: "name company" },
-    { path: "teamLeaders", select: "name email" },
+    { path: "operationsManagers", select: "name email" },
     { path: "employees", select: "name email" },
   ],
   sort: { createdAt: -1 },
@@ -83,10 +83,10 @@ export const consoles = buildCrud(DeveloperConsole, {
       data.client = null;
     }
 
-    if (data.teamLeaders !== undefined || data.employees !== undefined) {
-      const leaders = asIdList(data.teamLeaders ?? existing?.teamLeaders);
+    if (data.operationsManagers !== undefined || data.employees !== undefined) {
+      const leaders = asIdList(data.operationsManagers ?? existing?.operationsManagers);
       const staff = asIdList(data.employees ?? existing?.employees);
-      data.teamLeaders = leaders;
+      data.operationsManagers = leaders;
       data.employees = staff;
       data.assignments = mergeAssignments(
         existing?.assignments,
@@ -101,8 +101,8 @@ export const consoles = buildCrud(DeveloperConsole, {
   },
 
   afterSave: (doc, req, { isNew, previous }) => {
-    const before = [...(previous?.teamLeaders || []), ...(previous?.employees || [])];
-    const after = [...(doc.teamLeaders || []), ...(doc.employees || [])];
+    const before = [...(previous?.operationsManagers || []), ...(previous?.employees || [])];
+    const after = [...(doc.operationsManagers || []), ...(doc.employees || [])];
     const told = isNew ? after : newcomers(before, after);
 
     notifyUsers(told, {
@@ -597,7 +597,7 @@ export const playOverview = async (req, res) => {
 /**
  * The consoles and apps one team member has been put on.
  *
- * Team leaders and employees never get the whole list. A leader sees consoles
+ * Operations Managers and employees never get the whole list. A leader sees consoles
  * they lead plus every app on them; an employee sees only what they were named
  * on directly. Both are answered from the id arrays, which are indexed.
  */
@@ -607,8 +607,8 @@ export const myPlayWork = async (req, res) => {
     const isLeader = Boolean(req.leader);
 
     const consoleQuery = isLeader
-      ? { teamLeaders: user._id }
-      : { $or: [{ employees: user._id }, { teamLeaders: user._id }] };
+      ? { operationsManagers: user._id }
+      : { $or: [{ employees: user._id }, { operationsManagers: user._id }] };
 
     const myConsoles = await DeveloperConsole.find(consoleQuery)
       .select("name accountEmail status ownership appLimit")
@@ -651,14 +651,14 @@ export const myAppDetail = async (req, res) => {
     const user = req.leader || req.employee;
 
     const app = await PublishedApp.findById(req.params.id)
-      .populate("console", "name accountEmail status teamLeaders")
+      .populate("console", "name accountEmail status operationsManagers")
       .populate("client", "name company")
       .populate("employees", "name email designation");
 
     if (!app) return res.status(404).json({ message: "App not found" });
 
     const onApp = (app.employees || []).some((e) => String(e._id) === String(user._id));
-    const leadsConsole = (app.console?.teamLeaders || []).some(
+    const leadsConsole = (app.console?.operationsManagers || []).some(
       (id) => String(id) === String(user._id)
     );
 
@@ -689,7 +689,7 @@ export const staffCreateRelease = async (req, res) => {
   if (!onApp) {
     const owning = await DeveloperConsole.findOne({
       _id: app.console,
-      teamLeaders: user._id,
+      operationsManagers: user._id,
     }).select("_id");
     if (!owning) return res.status(403).json({ message: "You are not assigned to this app" });
   }

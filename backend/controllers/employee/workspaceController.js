@@ -38,7 +38,7 @@ export const listProjects = async (req, res) => {
     const [projects, total] = await Promise.all([
       Project.find(query)
         .populate("client", "name company")
-        .populate("teamLeader", "name designation")
+        .populate("operationsManager", "name designation")
         .sort({ endDate: 1 })
         .skip((page - 1) * limit)
         .limit(limit),
@@ -69,13 +69,13 @@ export const listProjects = async (req, res) => {
 
       /**
        * Who put this employee on the project, and when. Falls back to the
-       * project's team leader for memberships made before this was recorded —
+       * project's operations manager for memberships made before this was recorded —
        * they are answerable for it either way — but the date is never guessed.
        */
       const from = assignedByFor(
         project.memberAssignments,
         req.employee._id,
-        project.teamLeader?.name
+        project.operationsManager?.name
       );
 
       const row = project.toObject();
@@ -208,7 +208,7 @@ export const createIssue = async (req, res) => {
       severity: req.body.severity || "medium",
       status: "open",
       raisedBy: req.employee._id,
-      // Issues an employee raises land with their team leader
+      // Issues an employee raises land with their operations manager
       assignedTo: leaderId || undefined,
     });
 
@@ -229,7 +229,7 @@ export const createIssue = async (req, res) => {
         type: "issue",
         title: `New ${created.severity} issue from ${req.employee.name}`,
         message: created.title,
-        link: "/team-leader/issues",
+        link: "/operation-manager/issues",
       });
     }
 
@@ -264,7 +264,7 @@ export const updateIssue = async (req, res) => {
     if (status !== undefined) {
       // Closing an issue for good stays with the leader
       if (!["open", "in_progress", "resolved"].includes(status)) {
-        return res.status(400).json({ message: "Only your team leader can close an issue" });
+        return res.status(400).json({ message: "Only your operations manager can close an issue" });
       }
       existing.status = status;
       if (status === "resolved") existing.resolvedAt = new Date();
@@ -417,7 +417,7 @@ export const getLookups = async (req, res) => {
      * approving it is what closes that task.
      *
      * Completed ones are left out — there is nothing left to submit against
-     * work the team leader has already signed off.
+     * work the operations manager has already signed off.
      */
     const [projects, tasks] = await Promise.all([
       Project.find({ _id: { $in: projectIds } })

@@ -1,7 +1,7 @@
 import { Navigate } from "react-router-dom";
 
-// Guards the admin pages: no admin token -> back to the admin login.
+// Guards the admin pages: no token -> back to the one login at "/".
 export default function AdminRoute({ children }) {
   const token = localStorage.getItem("adminToken");
-  return token ? children : <Navigate to="/admin/login" replace />;
+  return token ? children : <Navigate to="/" replace />;
 }

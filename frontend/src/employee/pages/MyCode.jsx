@@ -50,7 +50,7 @@ const EMPTY = {
  * "My Code" — the employee submits code for review and follows what happened
  * to it. Editing is by new version, never in place, so the history survives.
  *
- * Review is the team leader's: a submission is routed to whoever leads the
+ * Review is the operations manager's: a submission is routed to whoever leads the
  * project, or failing that to whoever the employee reports to, and only falls
  * to the admin when there is no such person. "Changes required" is that leader
  * sending it back — the answer is a new version on the same submission, which
@@ -227,8 +227,8 @@ export default function MyCode() {
         title={isNew ? "Submit code for review" : `New version of "${editing?.title}"`}
         subtitle={
           isNew
-            ? "Your team leader reviews it before anyone else can see it"
-            : "The new version goes back to your team leader for review"
+            ? "Your operations manager reviews it before anyone else can see it"
+            : "The new version goes back to your operations manager for review"
         }
         onClose={() => setEditing(null)}
         footer={

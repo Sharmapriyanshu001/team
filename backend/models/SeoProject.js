@@ -63,7 +63,7 @@ const seoProjectSchema = new mongoose.Schema(
 
     notes: { type: String, trim: true, default: "" },
 
-    teamLeaders: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    operationsManagers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     employees: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     assignments: { type: [assignmentSchema], default: [] },
 
@@ -74,7 +74,7 @@ const seoProjectSchema = new mongoose.Schema(
 
 seoProjectSchema.index({ client: 1, status: 1 });
 seoProjectSchema.index({ status: 1, createdAt: -1 });
-seoProjectSchema.index({ teamLeaders: 1 });
+seoProjectSchema.index({ operationsManagers: 1 });
 seoProjectSchema.index({ employees: 1 });
 
 const SeoProject = mongoose.model("SeoProject", seoProjectSchema);

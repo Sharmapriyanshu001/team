@@ -17,10 +17,10 @@ export default function Modal({ open, title, subtitle, onClose, footer, size = "
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm">
       <div
-        className={`my-8 w-full ${widths[size]} rounded-xl bg-white shadow-xl`}
+        className={`my-6 w-full ${widths[size]} rounded-xl bg-white shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-4 py-3">
           <div>
             <h3 className="text-base font-semibold text-slate-900">{title}</h3>
             {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
@@ -33,10 +33,10 @@ export default function Modal({ open, title, subtitle, onClose, footer, size = "
           </button>
         </div>
 
-        <div className="px-5 py-4">{children}</div>
+        <div className="px-4 py-4">{children}</div>
 
         {footer && (
-          <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3">
+          <div className="flex justify-end gap-2 border-t border-slate-100 px-4 py-3">
             {footer}
           </div>
         )}

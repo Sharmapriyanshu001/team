@@ -4,8 +4,13 @@ import mongoose from "mongoose";
 export const PERMISSION_MODULES = [
   "dashboard",
   "clients",
-  "team_leaders",
+  "operations_managers",
   "employees",
+  // HR's own work, kept apart from the employee directory on purpose: a
+  // manager who should see who works here is not automatically somebody who
+  // should read everyone's leave reasons or the salary a candidate asked for.
+  "leaves",
+  "recruitment",
   "projects",
   "tasks",
   "chat",
@@ -33,8 +38,39 @@ export const PERMISSION_MODULES = [
   "reports",
   "activity_logs",
   "roles",
+  // Creating and managing the department logins themselves — HR, Sales and
+  // Operations accounts. Its own module because handing somebody the ability
+  // to mint department accounts is handing them the panel.
+  "department_accounts",
   "settings",
 ];
+
+/**
+ * Which department each module belongs to, for the role editor and for the
+ * default role each department account is given.
+ *
+ * A module missing from here is one that belongs to no single department —
+ * the dashboard, chat, reports — and is offered to every department.
+ */
+export const MODULE_DEPARTMENTS = {
+  employees: "hr",
+  leaves: "hr",
+  recruitment: "hr",
+  operations_managers: "hr",
+
+  crm: "sales",
+  clients: "sales",
+
+  projects: "operations",
+  tasks: "operations",
+  issues: "operations",
+  files: "operations",
+  code_projects: "operations",
+  code: "operations",
+  play_console: "operations",
+  seo: "operations",
+  ads: "operations",
+};
 
 export const PERMISSION_ACTIONS = ["view", "create", "edit", "delete"];
 

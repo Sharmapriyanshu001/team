@@ -28,14 +28,14 @@ const GROUPS = [
   { value: "", label: "Only the people I pick" },
   { value: "project_team", label: "Entire project team" },
   { value: "all_employees", label: "All employees" },
-  { value: "all_team_leaders", label: "All team leaders" },
+  { value: "all_operations_managers", label: "All operations managers" },
 ];
 
 const EMPTY_SHARE = { users: [], group: "", canDownload: true, note: "" };
 
 /**
  * The admin's code desk: review what employees submitted, then decide exactly
- * who gets the approved version. Nobody — team leaders included — sees a
+ * who gets the approved version. Nobody — operations managers included — sees a
  * submission until it is handed over from here.
  */
 export default function CodeReview() {
@@ -143,7 +143,7 @@ export default function CodeReview() {
   };
 
   // Everyone who can legally receive code, minus the author who already has it
-  const people = [...lookups.teamLeaders, ...lookups.employees].filter(
+  const people = [...lookups.operationsManagers, ...lookups.employees].filter(
     (person) =>
       String(person._id) !== String(sharing?.submittedBy?._id) &&
       person.name.toLowerCase().includes(peopleSearch.toLowerCase())
@@ -360,7 +360,7 @@ export default function CodeReview() {
         {detailLoading ? (
           <Loader label="Loading access..." />
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Share with" hint="A group is a shortcut — everyone is still stored one by one">
                 <Select

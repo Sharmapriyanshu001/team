@@ -89,7 +89,7 @@ const COLUMNS = {
       ),
     },
     { key: "client", header: "Client" },
-    { key: "leader", header: "Team leader" },
+    { key: "leader", header: "Operations Manager" },
     { key: "status", header: "Status", render: (row) => <Badge value={row.status} /> },
     { key: "priority", header: "Priority", render: (row) => <Badge value={row.priority} /> },
     { key: "progress", header: "Progress", render: (row) => <ProgressBar value={row.progress} /> },
@@ -123,7 +123,7 @@ const COLUMNS = {
       key: "role",
       header: "Role",
       render: (row) => (
-        <Badge tone={row.role === "team_leader" ? "black" : "blue"}>{prettify(row.role)}</Badge>
+        <Badge tone={row.role === "operations_manager" ? "black" : "blue"}>{prettify(row.role)}</Badge>
       ),
     },
     {
@@ -137,7 +137,7 @@ const COLUMNS = {
       key: "tasks",
       header: "Tasks",
       render: (row) =>
-        row.role === "team_leader"
+        row.role === "operations_manager"
           ? `${row.projectsLed} projects led`
           : `${row.tasksCompleted} / ${row.tasks}`,
     },
@@ -162,7 +162,7 @@ const COLUMNS = {
       ),
     },
     { key: "client", header: "Client" },
-    { key: "leader", header: "Team leader" },
+    { key: "leader", header: "Operations Manager" },
     { key: "status", header: "Status", render: (row) => <Badge value={row.status} /> },
     { key: "progress", header: "Progress", render: (row) => <ProgressBar value={row.progress} /> },
     {
@@ -176,8 +176,8 @@ const COLUMNS = {
 
 const EMPTY_TEXT = {
   clients: ["No clients yet", "Add a client to start tracking projects against them."],
-  projects: ["No projects yet", "Create a project and assign a team leader."],
-  team: ["Nobody added yet", "Add team leaders and employees from the sidebar."],
+  projects: ["No projects yet", "Create a project and assign an operations manager."],
+  team: ["Nobody added yet", "Add operations managers and employees from the sidebar."],
   budget: ["Nothing booked yet", "Project budgets show up here once projects exist."],
 };
 

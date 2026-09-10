@@ -3,7 +3,7 @@ import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
-/** Shared chrome for both the admin and team leader panels. */
+/** Shared chrome for both the admin and operations manager panels. */
 export default function PanelLayout({
   navItems,
   brand,
@@ -34,7 +34,7 @@ export default function PanelLayout({
           onMenuClick={() => setSidebarOpen(true)}
           extra={topbarExtra}
         />
-        <main className="px-4 py-6 lg:px-6">
+        <main className="px-4 py-4 lg:px-5">
           <Outlet />
         </main>
       </div>

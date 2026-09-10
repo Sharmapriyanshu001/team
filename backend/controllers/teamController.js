@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-import Team from "../models/Team.js";
+import Team, { ACTIVE_TEAM } from "../models/Team.js";
 import Target, { TARGET_METRICS } from "../models/Target.js";
 import User from "../models/User.js";
 import Task from "../models/Task.js";
@@ -12,6 +12,7 @@ import AppRelease from "../models/AppRelease.js";
 import Attendance from "../models/Attendance.js";
 
 import { buildCrud, InvalidInput } from "../utils/crud.js";
+import { actorOf } from "../utils/actor.js";
 import { logActivity } from "../utils/activity.js";
 import { notifyUsers } from "../utils/notify.js";
 
@@ -41,7 +42,7 @@ export const teams = buildCrud(Team, {
   filterFields: ["kind", "active"],
   populate: [
     { path: "manager", select: "name email designation" },
-    { path: "teamLeaders", select: "name email designation" },
+    { path: "operationsManagers", select: "name email designation" },
     { path: "members", select: "name email designation" },
   ],
   sort: { kind: 1, name: 1 },
@@ -56,17 +57,22 @@ export const teams = buildCrud(Team, {
      * — would be counted twice in every headcount and every average. Leaders
      * are the narrower list, so a duplicate is dropped from members.
      */
-    if (data.members !== undefined || data.teamLeaders !== undefined) {
-      const leaders = (data.teamLeaders ?? existing?.teamLeaders ?? []).map((id) =>
+    if (data.members !== undefined || data.operationsManagers !== undefined) {
+      const leaders = (data.operationsManagers ?? existing?.operationsManagers ?? []).map((id) =>
         String(id._id || id)
       );
       const members = (data.members ?? existing?.members ?? []).map((id) => String(id._id || id));
 
-      data.teamLeaders = leaders;
+      data.operationsManagers = leaders;
       data.members = members.filter((id) => !leaders.includes(id));
     }
 
-    if (!existing) data.createdBy = req.admin?._id;
+    /**
+     * Whoever opened it, from whichever panel. Was req.admin only, which left
+     * createdBy empty on every department HR opens — and an empty creator on
+     * a record that exists to say who answers for what is the wrong default.
+     */
+    if (!existing) data.createdBy = actorOf(req)?._id;
 
     /**
      * Being made manager or leader of a team is a role in the company, not
@@ -82,15 +88,15 @@ export const teams = buildCrud(Team, {
      */
     if (data.manager) {
       await User.updateOne(
-        { _id: data.manager, role: { $in: ["employee", "team_leader", "user"] } },
+        { _id: data.manager, role: { $in: ["employee", "operations_manager", "user"] } },
         { role: "manager" }
       );
     }
 
-    if (data.teamLeaders?.length) {
+    if (data.operationsManagers?.length) {
       await User.updateMany(
-        { _id: { $in: data.teamLeaders }, role: { $in: ["employee", "user"] } },
-        { role: "team_leader" }
+        { _id: { $in: data.operationsManagers }, role: { $in: ["employee", "user"] } },
+        { role: "operations_manager" }
       );
     }
 
@@ -179,7 +185,7 @@ const measure = async (metric, people, { from, to }) => {
 
     case "projects_delivered":
       return Project.countDocuments({
-        $or: [{ teamLeader: { $in: ids } }, { members: { $in: ids } }],
+        $or: [{ operationsManager: { $in: ids } }, { members: { $in: ids } }],
         status: "completed",
         updatedAt: { $gte: from, $lte: to },
       });
@@ -445,7 +451,7 @@ export const teamDetail = async (req, res) => {
   try {
     const team = await Team.findById(req.params.id)
       .populate("manager", "name email designation phone")
-      .populate("teamLeaders", "name email designation")
+      .populate("operationsManagers", "name email designation")
       .populate("members", "name email designation");
 
     if (!team) return res.status(404).json({ message: "Team not found" });
@@ -480,7 +486,7 @@ export const teamDetail = async (req, res) => {
 
     /** Each person's own targets, so a manager can see who is carrying what. */
     const byPerson = [
-      ...(team.teamLeaders || []),
+      ...(team.operationsManagers || []),
       ...(team.members || []),
     ].map((person) => {
       const theirs = targets.filter(
@@ -491,7 +497,7 @@ export const teamDetail = async (req, res) => {
         _id: person._id,
         name: person.name,
         designation: person.designation,
-        isLeader: (team.teamLeaders || []).some((leader) => String(leader._id) === String(person._id)),
+        isLeader: (team.operationsManagers || []).some((leader) => String(leader._id) === String(person._id)),
         targets: theirs,
         openTasks: openTasks.filter(
           (task) => String(task.assignedTo?._id) === String(person._id)
@@ -526,7 +532,7 @@ export const teamsOverview = async (req, res) => {
     const month = Number(req.query.month) || now.getMonth() + 1;
     const { from, to } = monthBounds(year, month);
 
-    const all = await Team.find({ active: true })
+    const all = await Team.find({ ...ACTIVE_TEAM })
       .populate("manager", "name")
       .sort({ kind: 1, name: 1 });
 
@@ -554,7 +560,7 @@ export const teamsOverview = async (req, res) => {
           kind: team.kind,
           manager: team.manager,
           headcount: everyone.length,
-          leaderCount: (team.teamLeaders || []).length,
+          leaderCount: (team.operationsManagers || []).length,
           targets,
           behind: targets.filter((target) => target.onTrack === false).length,
           work: { open: openTasks, completedThisMonth: done },
@@ -585,11 +591,11 @@ export const myTeam = async (req, res) => {
     const month = Number(req.query.month) || now.getMonth() + 1;
 
     const myTeams = await Team.find({
-      active: true,
-      $or: [{ manager: user._id }, { teamLeaders: user._id }, { members: user._id }],
+      ...ACTIVE_TEAM,
+      $or: [{ manager: user._id }, { operationsManagers: user._id }, { members: user._id }],
     })
       .populate("manager", "name designation")
-      .populate("teamLeaders", "name designation")
+      .populate("operationsManagers", "name designation")
       .populate("members", "name designation");
 
     const teamIds = myTeams.map((team) => team._id);

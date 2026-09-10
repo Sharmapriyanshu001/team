@@ -32,7 +32,7 @@ const MAX_UPLOAD_MB = 50;
 
 const ROLE_LABELS = {
   admin: "Super Admin",
-  team_leader: "Team Leader",
+  operations_manager: "Operations Manager",
   employee: "Employee",
 };
 
@@ -63,7 +63,7 @@ const saveBlob = (blob, filename) => {
 };
 
 /**
- * Sending code archives person to person. Identical in the admin, team leader
+ * Sending code archives person to person. Identical in the admin, operations manager
  * and employee panels — each mounts it with its own api instance and base path,
  * and the server decides what that account may see.
  *
@@ -220,7 +220,7 @@ export default function CodeShareBoard({ api, base, title = "Code", subtitle }) 
       ) : (
         <div className="space-y-3">
           {rows.map((row) => (
-            <Card key={row._id} className="p-4">
+            <Card key={row._id} className="px-4 py-3">
               <div className="flex flex-wrap items-start gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                   <FileArchive size={18} />
@@ -441,7 +441,7 @@ function SendCodeModal({ open, api, base, people, onClose, onSent }) {
         </>
       }
     >
-      <form onSubmit={handleSend} className="space-y-5">
+      <form onSubmit={handleSend} className="space-y-4">
         <Alert>{error}</Alert>
 
         {/* who gets it */}
@@ -454,7 +454,7 @@ function SendCodeModal({ open, api, base, people, onClose, onSent }) {
             {[
               { value: "", label: "Everyone" },
               { value: "admin", label: "Super Admin" },
-              { value: "team_leader", label: "Team Leaders" },
+              { value: "operations_manager", label: "Operations Managers" },
               { value: "employee", label: "Employees" },
             ].map((role) => (
               <button

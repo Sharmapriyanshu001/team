@@ -56,6 +56,7 @@ export default function TaskList({ title, subtitle, baseFilters = {}, showRating
       title: row.title,
       description: row.description || "",
       project: row.project?._id || "",
+      team: row.team?._id || "",
       assignedTo: row.assignedTo?._id || "",
       status: row.status,
       priority: row.priority,
@@ -114,7 +115,9 @@ export default function TaskList({ title, subtitle, baseFilters = {}, showRating
       render: (row) => (
         <div className="max-w-sm">
           <p className="truncate font-medium text-slate-900">{row.title}</p>
-          <p className="truncate text-xs text-slate-400">{row.project?.name || "No project"}</p>
+          <p className="truncate text-xs text-slate-400">
+            {row.project?.name || row.team?.name || "No project"}
+          </p>
         </div>
       ),
     },
@@ -194,7 +197,7 @@ export default function TaskList({ title, subtitle, baseFilters = {}, showRating
   return (
     <div>
       <PageHeader title={title} subtitle={subtitle || `${crud.total} tasks`}>
-        <Link to="/team-leader/tasks/create">
+        <Link to="/operation-manager/tasks/create">
           <Button>
             <Plus size={15} />
             Create Task
@@ -223,6 +226,16 @@ export default function TaskList({ title, subtitle, baseFilters = {}, showRating
               placeholder: "Anyone",
               options: lookups.teamOptions,
             },
+            ...(lookups.managesDepartment
+              ? [
+                  {
+                    key: "team",
+                    value: crud.filters.team,
+                    placeholder: "All departments",
+                    options: lookups.departmentOptions,
+                  },
+                ]
+              : []),
             {
               key: "priority",
               value: crud.filters.priority,
@@ -268,14 +281,28 @@ export default function TaskList({ title, subtitle, baseFilters = {}, showRating
               <Input name="title" value={form.title} onChange={change} required />
             </Field>
 
-            <Field label="Project">
-              <Select
-                name="project"
-                value={form.project}
-                onChange={change}
-                options={lookups.projectOptions}
-              />
-            </Field>
+            {/* Department work has no project, so the field it belongs to is
+                the one shown — swapping between the two is done on the full
+                task form rather than here, where the point is a quick edit. */}
+            {form.team && !form.project ? (
+              <Field label="Department">
+                <Select
+                  name="team"
+                  value={form.team}
+                  onChange={change}
+                  options={lookups.departmentOptions}
+                />
+              </Field>
+            ) : (
+              <Field label="Project">
+                <Select
+                  name="project"
+                  value={form.project}
+                  onChange={change}
+                  options={lookups.projectOptions}
+                />
+              </Field>
+            )}
 
             <Field label="Assign to">
               <Select

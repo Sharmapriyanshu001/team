@@ -222,13 +222,13 @@ export default function CodeProjects() {
           <EmptyState
             icon={Boxes}
             title="No code projects yet"
-            message="Create one, upload its ZIP, and assign the team leader and employees who work on it."
+            message="Create one, upload its ZIP, and assign the operations manager and employees who work on it."
           />
         </Card>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {items.map((row) => {
-            const people = [...(row.teamLeaders || []), ...(row.employees || [])];
+            const people = [...(row.operationsManagers || []), ...(row.employees || [])];
             const refused = row.extractReport?.rejected?.length || 0;
 
             return (
@@ -379,7 +379,7 @@ export default function CodeProjects() {
                         >
                           {person.name}
                           <span className="text-[10px] opacity-70">
-                            {person.role === "team_leader" ? "Lead" : "Emp"}
+                            {person.role === "operations_manager" ? "Lead" : "Emp"}
                           </span>
                         </span>
                       ))}
@@ -481,7 +481,7 @@ function CreateProjectModal({ open, onClose, onCreated }) {
   const change = (e) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   const toggle = (key) => setForm((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  const leaderOptions = lookups.teamLeaders.map((p) => ({ value: p._id, label: p.name }));
+  const leaderOptions = lookups.operationsManagers.map((p) => ({ value: p._id, label: p.name }));
   const employeeOptions = lookups.employees.map((p) => ({ value: p._id, label: p.name }));
 
   const pickedLeaders = leaderOptions.filter((o) => leaders.includes(o.value));
@@ -542,7 +542,7 @@ function CreateProjectModal({ open, onClose, onCreated }) {
       body.append("name", form.name.trim());
       body.append("description", form.description.trim());
       if (form.project) body.append("project", form.project);
-      body.append("teamLeaders", JSON.stringify(leaders));
+      body.append("operationsManagers", JSON.stringify(leaders));
       body.append("employees", JSON.stringify(employees));
       body.append("canEdit", String(form.canEdit));
       body.append("canCreateDelete", String(form.canCreateDelete));
@@ -578,7 +578,7 @@ function CreateProjectModal({ open, onClose, onCreated }) {
         </>
       }
     >
-      <form onSubmit={handleSave} className="space-y-5">
+      <form onSubmit={handleSave} className="space-y-4">
         <Alert>{error}</Alert>
 
         {/* the archive */}
@@ -666,12 +666,12 @@ function CreateProjectModal({ open, onClose, onCreated }) {
           </h4>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Team leaders" hint={`${leaders.length} selected`}>
+            <Field label="Operations Managers" hint={`${leaders.length} selected`}>
               <MultiSelect
                 options={leaderOptions}
                 value={leaders}
                 onChange={setLeaders}
-                emptyLabel="No team leaders on record"
+                emptyLabel="No operations managers on record"
                 height="max-h-36"
               />
             </Field>
@@ -742,7 +742,7 @@ const PERMISSIONS = [
 function AssignModal({ project, onClose, onSaved }) {
   const lookups = useLookups();
 
-  const [leaders, setLeaders] = useState((project.teamLeaders || []).map((p) => p._id));
+  const [leaders, setLeaders] = useState((project.operationsManagers || []).map((p) => p._id));
   const [employees, setEmployees] = useState((project.employees || []).map((p) => p._id));
   const [permissions, setPermissions] = useState({
     canEdit: project.permissions?.canEdit !== false,
@@ -752,7 +752,7 @@ function AssignModal({ project, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const leaderOptions = lookups.teamLeaders.map((p) => ({ value: p._id, label: p.name }));
+  const leaderOptions = lookups.operationsManagers.map((p) => ({ value: p._id, label: p.name }));
   const employeeOptions = lookups.employees.map((p) => ({ value: p._id, label: p.name }));
 
   const picked = [
@@ -762,7 +762,7 @@ function AssignModal({ project, onClose, onSaved }) {
 
   // Only people who were not already on the project get a notification
   const before = new Set(
-    [...(project.teamLeaders || []), ...(project.employees || [])].map((p) => p._id)
+    [...(project.operationsManagers || []), ...(project.employees || [])].map((p) => p._id)
   );
   const newcomers = picked.filter((p) => !before.has(p.value)).length;
 
@@ -772,7 +772,7 @@ function AssignModal({ project, onClose, onSaved }) {
 
     try {
       const { data } = await adminApi.put(`/admin/code-projects/${project._id}`, {
-        teamLeaders: leaders,
+        operationsManagers: leaders,
         employees,
         permissions,
       });
@@ -801,16 +801,16 @@ function AssignModal({ project, onClose, onSaved }) {
         </>
       }
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         <Alert>{error}</Alert>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Team leaders" hint={`${leaders.length} selected`}>
+          <Field label="Operations Managers" hint={`${leaders.length} selected`}>
             <MultiSelect
               options={leaderOptions}
               value={leaders}
               onChange={setLeaders}
-              emptyLabel="No team leaders on record"
+              emptyLabel="No operations managers on record"
               height="max-h-36"
             />
           </Field>

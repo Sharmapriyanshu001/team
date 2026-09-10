@@ -14,7 +14,16 @@ import adminApi from "../adminApi";
 let pending = null;
 let cached = null;
 
-const OPEN = { isSuperAdmin: false, unrestricted: true, modules: {}, roleName: "", problem: "" };
+const OPEN = {
+  isSuperAdmin: false,
+  isFullAdmin: true,
+  department: "",
+  departmentLabel: "",
+  unrestricted: true,
+  modules: {},
+  roleName: "",
+  problem: "",
+};
 
 const load = () => {
   if (cached) return Promise.resolve(cached);
@@ -66,6 +75,16 @@ export default function usePermissions() {
     permissions,
     loading: !permissions,
     isSuperAdmin: Boolean(permissions?.isSuperAdmin),
+    /**
+     * Whether this is an administrator rather than a department head.
+     *
+     * Defaults to true while the answer is still loading, for the same reason
+     * `can` does: showing a section briefly and having the server refuse it is
+     * better than the whole panel flickering as it arrives.
+     */
+    isFullAdmin: permissions ? Boolean(permissions.isFullAdmin) : true,
+    department: permissions?.department || "",
+    departmentLabel: permissions?.departmentLabel || "",
     roleName: permissions?.roleName || "",
     problem: permissions?.problem || "",
     can,

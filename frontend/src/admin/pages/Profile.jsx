@@ -99,7 +99,7 @@ export default function Profile() {
   const { askSignOut, signOutDialog } = useSignOut({
     tokenKey: "adminToken",
     userKey: "admin",
-    loginPath: "/admin/login",
+    loginPath: "/",
     panel: "the admin panel",
   });
 

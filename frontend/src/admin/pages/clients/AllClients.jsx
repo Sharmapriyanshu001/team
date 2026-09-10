@@ -9,8 +9,21 @@ import Toolbar from "../../../shared/components/Toolbar";
 import { ConfirmDialog } from "../../../shared/components/Modal";
 import { Alert, Badge, Button, Card, PageHeader } from "../../../shared/components/ui";
 
-export default function AllClients() {
+/**
+ * Every client on record.
+ *
+ * Like the staff lists, this screen has two homes: its own page, and the
+ * Team & Accounts panel where the heading and the type dropdown belong to the
+ * panel. `embedded` drops the heading and moves Add into the toolbar; the two
+ * path props let the panel keep its list and its form on one URL.
+ */
+export default function AllClients({
+  embedded = false,
+  addPath = "/admin/clients/add",
+  editPath,
+}) {
   const navigate = useNavigate();
+  const editHref = (id) => (editPath ? editPath(id) : `${addPath}?id=${id}`);
   const crud = useCrud("clients");
   const [target, setTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -77,7 +90,7 @@ export default function AllClients() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/admin/clients/add?id=${row._id}`);
+              navigate(editHref(row._id));
             }}
             title="Edit"
             className="rounded-md p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
@@ -101,14 +114,16 @@ export default function AllClients() {
 
   return (
     <div>
-      <PageHeader title="All Clients" subtitle={`${crud.total} clients on record`}>
-        <Link to="/admin/clients/add">
-          <Button>
-            <Plus size={15} />
-            Add Client
-          </Button>
-        </Link>
-      </PageHeader>
+      {!embedded && (
+        <PageHeader title="All Clients" subtitle={`${crud.total} clients on record`}>
+          <Link to={addPath}>
+            <Button>
+              <Plus size={15} />
+              Add Client
+            </Button>
+          </Link>
+        </PageHeader>
+      )}
 
       <Alert>{crud.error}</Alert>
 
@@ -126,7 +141,16 @@ export default function AllClients() {
               options: ["active", "inactive", "lead"],
             },
           ]}
-        />
+        >
+          {embedded && (
+            <Link to={addPath} className="ml-auto">
+              <Button size="sm">
+                <Plus size={15} />
+                Add client
+              </Button>
+            </Link>
+          )}
+        </Toolbar>
         <DataTable
           columns={columns}
           rows={crud.rows}
@@ -147,7 +171,7 @@ export default function AllClients() {
         id={viewing?._id}
         roleLabel="Client"
         onClose={() => setViewing(null)}
-        onEdit={(id) => navigate(`/admin/clients/add?id=${id}`)}
+        onEdit={(id) => navigate(editHref(id))}
       />
 
       <ConfirmDialog

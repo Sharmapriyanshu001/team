@@ -10,7 +10,7 @@ export default function MyCodeProjects() {
     <MyCodeProjectsBoard
       api={leaderApi}
       base="/leader"
-      workspaceBase="/team-leader/code-projects"
+      workspaceBase="/operation-manager/code-projects"
       subtitle="Code projects the admin has assigned to you — open them here, no download needed"
     />
   );

@@ -284,7 +284,7 @@ export default function MyCodeProjects({ api, base, workspaceBase, subtitle }) {
                       {row.fileCount} files · {formatSize(row.totalSize)}
                     </p>
                     {/* Who handed this workspace over, and when — blank when it
-                        came straight from an admin rather than a team leader */}
+                        came straight from an admin rather than an operations manager */}
                     {row.assignedBy && (
                       <p className="truncate text-xs text-slate-500">
                         Sent by {row.assignedBy}

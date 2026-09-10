@@ -69,7 +69,7 @@ const idOf = (value) => String(value?._id || value || "");
  *
  *   admin    — full record, including the access trail
  *   owner    — their own submission, every version, who it went to
- *   reviewer — the team leader it is waiting on: every version, so they can
+ *   reviewer — the operations manager it is waiting on: every version, so they can
  *              actually review it, but not the distribution list or the trail
  *   shared   — approved versions only, and download only if that was granted
  */
@@ -187,26 +187,26 @@ const validateSource = ({ code, repoUrl }) => {
 /**
  * Who a submission goes to.
  *
- * The project's team leader, or failing that whoever the employee reports to.
+ * The project's operations manager, or failing that whoever the employee reports to.
  * Null only when neither exists, and the caller falls back to the admins —
  * a submission that reaches nobody is worse than one that reaches the wrong
  * desk, because nothing tells anyone it happened.
  */
 const resolveReviewer = async (employee, projectId) => {
   if (projectId) {
-    const project = await Project.findById(projectId).select("teamLeader");
-    if (project?.teamLeader) return project.teamLeader;
+    const project = await Project.findById(projectId).select("operationsManager");
+    if (project?.operationsManager) return project.operationsManager;
   }
   return employee.reportsTo || null;
 };
 
 /**
  * Tell whoever has to look at it. Falls back to every admin when the employee
- * has no team leader at all, so the queue is never a dead end.
+ * has no operations manager at all, so the queue is never a dead end.
  */
 const alertReviewer = async (reviewer, { title, message }) => {
   if (reviewer) {
-    notifyUser(reviewer, { type: "review", title, message, link: "/team-leader/code-reviews" });
+    notifyUser(reviewer, { type: "review", title, message, link: "/operation-manager/code-reviews" });
     return;
   }
 
@@ -282,7 +282,7 @@ export const submitCode = async (req, res) => {
     const doc = await withRefs(CodeSubmission.findById(created._id));
     return res.status(201).json({
       message: reviewer
-        ? "Code sent to your team leader for review"
+        ? "Code sent to your operations manager for review"
         : "Code sent to the admin for review",
       item: summarize(doc, "owner"),
     });
@@ -330,7 +330,7 @@ export const addVersion = async (req, res) => {
 
     /**
      * Re-resolved rather than left alone: between the first submission and
-     * this one the project may have been handed to a different team leader,
+     * this one the project may have been handed to a different operations manager,
      * and a resubmission belongs in the queue of whoever leads it now.
      */
     const reviewer = await resolveReviewer(req.employee, doc.project);
@@ -402,7 +402,7 @@ export const listMySubmissions = async (req, res) => {
 /**
  * GET /api/employee/code/shared  ·  GET /api/leader/code
  *
- * Driven purely by the sharedWith list, so a team leader sees exactly what the
+ * Driven purely by the sharedWith list, so an operations manager sees exactly what the
  * admin handed them — never their team's submissions by default.
  */
 export const listSharedWithMe = async (req, res) => {
@@ -613,7 +613,7 @@ export const reviewSubmission = async (req, res) => {
   }
 };
 
-/* --------------------------------------------- team leader: review queue */
+/* --------------------------------------------- operations manager: review queue */
 
 /**
  * GET /api/leader/code/review?status=pending|approved|changes_required|all
@@ -665,7 +665,7 @@ export const listReviewQueue = async (req, res) => {
 /**
  * PUT /api/leader/code/:id/review   { decision: "approve" | "changes", note }
  *
- * The team leader's decision on a submission.
+ * The operations manager's decision on a submission.
  *
  * Deliberately not the same handler as the admin's: this one refuses anything
  * that is not in this leader's own queue, and it cannot reject — a leader
@@ -677,7 +677,7 @@ export const reviewAsLeader = async (req, res) => {
     const doc = await CodeSubmission.findById(req.params.id);
     if (!doc) return res.status(404).json({ message: "Code submission not found" });
 
-    // Being a team leader is not the check; being *this* submission's reviewer is
+    // Being an operations manager is not the check; being *this* submission's reviewer is
     if (idOf(doc.reviewer) !== idOf(req.leader._id)) {
       return res.status(403).json({ message: "This submission is not in your review queue" });
     }
@@ -715,7 +715,7 @@ export const reviewAsLeader = async (req, res) => {
     }
 
     doc.reviewedBy = req.leader._id;
-    doc.reviewedByRole = "team_leader";
+    doc.reviewedByRole = "operations_manager";
     doc.reviewedAt = new Date();
     doc.reviewNote = note;
     doc.accessLog.push({
@@ -786,14 +786,14 @@ const expandGroup = async (group, doc) => {
   if (group === "all_employees") {
     return User.find({ role: "employee", status: "active" }).distinct("_id");
   }
-  if (group === "all_team_leaders") {
-    return User.find({ role: "team_leader", status: "active" }).distinct("_id");
+  if (group === "all_operations_managers") {
+    return User.find({ role: "operations_manager", status: "active" }).distinct("_id");
   }
   if (group === "project_team") {
     if (!doc.project) return [];
-    const project = await Project.findById(doc.project).select("members teamLeader");
+    const project = await Project.findById(doc.project).select("members operationsManager");
     if (!project) return [];
-    return [...(project.members || []), project.teamLeader].filter(Boolean);
+    return [...(project.members || []), project.operationsManager].filter(Boolean);
   }
   return [];
 };
@@ -821,7 +821,7 @@ export const shareSubmission = async (req, res) => {
     // Only real, active staff — and never the author, who already has it
     const targets = await User.find({
       _id: { $in: wanted, $ne: doc.submittedBy },
-      role: { $in: ["team_leader", "employee"] },
+      role: { $in: ["operations_manager", "employee"] },
       status: "active",
     }).select("name role");
 
@@ -870,7 +870,7 @@ export const shareSubmission = async (req, res) => {
         type: "system",
         title: "Code shared with you",
         message: `"${doc.title}" v${doc.approvedVersion}`,
-        link: target.role === "team_leader" ? "/team-leader/code" : "/employee/code/shared",
+        link: target.role === "operations_manager" ? "/operation-manager/code" : "/employee/code/shared",
       });
     });
 

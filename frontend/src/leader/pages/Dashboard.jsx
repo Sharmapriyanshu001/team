@@ -117,7 +117,7 @@ export default function Dashboard() {
           value={stats.projects}
           sub={`${stats.activeProjects} active · ${stats.completedProjects} closed`}
           accent="blue"
-          to="/team-leader/projects/active"
+          to="/operation-manager/projects/active"
         />
         <StatCard
           icon={UsersRound}
@@ -125,7 +125,7 @@ export default function Dashboard() {
           value={stats.teamSize}
           sub="Reporting to you"
           accent="black"
-          to="/team-leader/team"
+          to="/operation-manager/team"
         />
         <StatCard
           icon={ClipboardCheck}
@@ -133,7 +133,7 @@ export default function Dashboard() {
           value={stats.tasksInReview}
           sub="Sign off or send back"
           accent="light"
-          to="/team-leader/daily-review"
+          to="/operation-manager/daily-review"
         />
         <StatCard
           icon={AlertTriangle}
@@ -141,7 +141,7 @@ export default function Dashboard() {
           value={stats.openIssues}
           sub={`${stats.overdueTasks} tasks overdue`}
           accent="blue"
-          to="/team-leader/issues"
+          to="/operation-manager/issues"
         />
       </div>
 
@@ -178,7 +178,7 @@ export default function Dashboard() {
             <ProgressBar value={stats.avgProgress} />
           </div>
           <Link
-            to="/team-leader/progress"
+            to="/operation-manager/progress"
             className="mt-2 inline-block text-xs font-medium text-blue-600 hover:underline"
           >
             Open progress board →
@@ -196,7 +196,7 @@ export default function Dashboard() {
             </span>
           </div>
           <Link
-            to="/team-leader/tasks/pending"
+            to="/operation-manager/tasks/pending"
             className="mt-3 inline-block text-xs font-medium text-blue-600 hover:underline"
           >
             View pending tasks →
@@ -343,7 +343,7 @@ export default function Dashboard() {
             title="Waiting for your review"
             action={
               <Link
-                to="/team-leader/daily-review"
+                to="/operation-manager/daily-review"
                 className="text-xs font-medium text-blue-600 hover:underline"
               >
                 Review
@@ -370,7 +370,7 @@ export default function Dashboard() {
             title="Upcoming deadlines"
             action={
               <Link
-                to="/team-leader/calendar"
+                to="/operation-manager/calendar"
                 className="text-xs font-medium text-blue-600 hover:underline"
               >
                 Calendar
@@ -408,7 +408,7 @@ export default function Dashboard() {
             title="Recent projects"
             action={
               <Link
-                to="/team-leader/projects/active"
+                to="/operation-manager/projects/active"
                 className="text-xs font-medium text-blue-600 hover:underline"
               >
                 View all

@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 /**
  * Where a submission stands.
  *
- * "changes_required" is the team leader sending work back with a comment; it
+ * "changes_required" is the operations manager sending work back with a comment; it
  * is a distinct state from "rejected", which stays what it always was — the
  * admin's own refusal. Two different people, two different decisions, and a
  * screen that says "changes required" when the leader asked for changes.
@@ -46,7 +46,7 @@ const versionSchema = new mongoose.Schema(
 
 /**
  * One person the admin handed this code to. Nobody sees a submission unless
- * they are the author, an admin, or hold a row in here — a team leader gets
+ * they are the author, an admin, or hold a row in here — an operations manager gets
  * nothing automatically.
  */
 const shareSchema = new mongoose.Schema(
@@ -90,9 +90,9 @@ const codeSubmissionSchema = new mongoose.Schema(
     submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
     /**
-     * The team leader this submission is waiting on.
+     * The operations manager this submission is waiting on.
      *
-     * Worked out when the code is submitted — the project's team leader, or
+     * Worked out when the code is submitted — the project's operations manager, or
      * failing that whoever the employee reports to — and stored rather than
      * derived on every read, so "whose queue is this in" is a fact about the
      * submission instead of a join that can quietly answer differently later.
@@ -128,7 +128,7 @@ const codeSubmissionSchema = new mongoose.Schema(
 codeSubmissionSchema.index({ submittedBy: 1, createdAt: -1 });
 codeSubmissionSchema.index({ "sharedWith.user": 1, createdAt: -1 });
 codeSubmissionSchema.index({ status: 1, createdAt: -1 });
-// The team leader's review queue, which every page load of theirs asks for
+// The operations manager's review queue, which every page load of theirs asks for
 codeSubmissionSchema.index({ reviewer: 1, status: 1, createdAt: -1 });
 
 const CodeSubmission = mongoose.model("CodeSubmission", codeSubmissionSchema);

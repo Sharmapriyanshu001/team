@@ -87,7 +87,7 @@ export default function Profile() {
   const { askSignOut, signOutDialog } = useSignOut({
     tokenKey: "clientToken",
     userKey: "client",
-    loginPath: "/client/login",
+    loginPath: "/",
     panel: "the client portal",
   });
 

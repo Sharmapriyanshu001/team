@@ -6,7 +6,9 @@ import {
   Eye,
   EyeOff,
   FileText,
+  IdCard,
   KeyRound,
+  Landmark,
   LogIn,
   Mail,
   MapPin,
@@ -68,6 +70,20 @@ function Stat({ label, value }) {
     </div>
   );
 }
+
+/**
+ * The four identity scans the joining form asks for.
+ *
+ * Listed by which ones ARRIVED rather than as four rows of yes/no: the useful
+ * sentence is "we have the Aadhaar front and back", and four separate lines
+ * saying "Not on file" pushes the rest of the record off the screen.
+ */
+const IDENTITY_SCANS = [
+  { key: "aadhaarFront", label: "Aadhaar front" },
+  { key: "aadhaarBack", label: "Aadhaar back" },
+  { key: "panFront", label: "PAN front" },
+  { key: "panBack", label: "PAN back" },
+];
 
 function Section({ title, count, children }) {
   return (
@@ -158,7 +174,7 @@ function Credentials({ credentials, portalOff }) {
 }
 
 /**
- * Full profile for one team leader, employee or client, opened by clicking
+ * Full profile for one operations manager, employee or client, opened by clicking
  * their row on the list. Loads /admin/<resource>/:id/details on open, then
  * renders the blocks that apply to that kind of record.
  */
@@ -190,7 +206,7 @@ export default function ProfileDetail({ open, resource, id, roleLabel, onClose, 
   }, [open, id, resource]);
 
   const isClient = resource === "clients";
-  const isLeader = resource === "team-leaders";
+  const isLeader = resource === "operations-managers";
   const isEmployee = resource === "employees";
 
   const record = data?.item;
@@ -281,6 +297,108 @@ export default function ProfileDetail({ open, resource, id, roleLabel, onClose, 
             </div>
           </Section>
 
+          {/**
+           * Everything the joining form collected.
+           *
+           * The five-step form asks for identity numbers, scans, bank details
+           * and where they worked before — and none of it appeared anywhere
+           * afterwards. Somebody checking whether a new starter's PAN had
+           * arrived had to open the edit form and step through it, which is
+           * how a read turns into an accidental write.
+           *
+           * A missing field prints "Not on file" rather than being hidden: the
+           * gap is the thing being looked for.
+           */}
+          {!isClient && (
+            <>
+              <Section title="Identity">
+                <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
+                  <Row
+                    icon={IdCard}
+                    label="Aadhaar number"
+                    value={record.documents?.aadhaarNumber || "Not on file"}
+                  />
+                  <Row
+                    icon={IdCard}
+                    label="PAN number"
+                    value={record.documents?.panNumber || "Not on file"}
+                  />
+                  <div className="sm:col-span-2">
+                    <Row
+                      icon={FileText}
+                      label="Scans"
+                      value={
+                        IDENTITY_SCANS.filter((f) => record.documents?.[f.key]?.storedName)
+                          .map((f) => f.label)
+                          .join(", ") || "None uploaded"
+                      }
+                    />
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="Bank">
+                <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
+                  <Row
+                    icon={Wallet}
+                    label="Account name"
+                    value={record.bank?.accountName || "Not on file"}
+                  />
+                  <Row
+                    icon={Wallet}
+                    label="Account number"
+                    value={record.bank?.accountNumber || "Not on file"}
+                  />
+                  <Row icon={Landmark} label="Bank" value={record.bank?.bankName || "Not on file"} />
+                  <Row icon={Landmark} label="IFSC" value={record.bank?.ifsc || "Not on file"} />
+                </div>
+              </Section>
+
+              {(record.previousEmployment?.companyName ||
+                record.previousEmployment?.designation ||
+                record.previousEmployment?.lastSalary) && (
+                <Section title="Previous employment">
+                  <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
+                    <Row
+                      icon={Building2}
+                      label="Company"
+                      value={record.previousEmployment?.companyName}
+                    />
+                    <Row
+                      icon={Briefcase}
+                      label="Designation"
+                      value={record.previousEmployment?.designation}
+                    />
+                    <Row
+                      icon={CalendarDays}
+                      label="From"
+                      value={formatDate(record.previousEmployment?.fromDate)}
+                    />
+                    <Row
+                      icon={CalendarDays}
+                      label="To"
+                      value={formatDate(record.previousEmployment?.toDate)}
+                    />
+                    <Row
+                      icon={Wallet}
+                      label="Last salary"
+                      value={
+                        record.previousEmployment?.lastSalary
+                          ? formatMoney(record.previousEmployment.lastSalary)
+                          : "—"
+                      }
+                    />
+                    <Row
+                      icon={StickyNote}
+                      label="Reason for leaving"
+                      value={record.previousEmployment?.reasonForLeaving}
+                    />
+                  </div>
+                </Section>
+              )}
+            </>
+          )}
+
           {/* numbers */}
           <Section title="At a glance">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -317,9 +435,9 @@ export default function ProfileDetail({ open, resource, id, roleLabel, onClose, 
                       <p className="truncate text-xs text-slate-400">
                         {project.code || "—"}
                         {isClient
-                          ? project.teamLeader?.name
-                            ? ` · Lead: ${project.teamLeader.name}`
-                            : " · No team leader"
+                          ? project.operationsManager?.name
+                            ? ` · Lead: ${project.operationsManager.name}`
+                            : " · No operations manager"
                           : project.client?.name
                             ? ` · ${project.client.name}`
                             : ""}
@@ -337,7 +455,7 @@ export default function ProfileDetail({ open, resource, id, roleLabel, onClose, 
             )}
           </Section>
 
-          {/* team members — team leaders only */}
+          {/* team members — operations managers only */}
           {isLeader && (
             <Section title="Team members" count={data.team.length}>
               {data.team.length ? (

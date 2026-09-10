@@ -5,7 +5,7 @@ import api from "../api";
 
 const HIGHLIGHTS = [
   { icon: LayoutDashboard, text: "Live delivery dashboard with charts" },
-  { icon: Users, text: "Clients, team leaders and employees in one place" },
+  { icon: Users, text: "Clients, operations managers and employees in one place" },
   { icon: BarChart3, text: "Attendance, performance and project reports" },
 ];
 

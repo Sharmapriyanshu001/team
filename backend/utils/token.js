@@ -20,7 +20,7 @@ const EXPIRES_IN = "7d";
 const sign = (payload) =>
   jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: EXPIRES_IN });
 
-/** Admin, super admin, team leader, employee. */
+/** Admin, super admin, operations manager, employee. */
 export const signStaffToken = (user) =>
   sign({
     id: user._id,

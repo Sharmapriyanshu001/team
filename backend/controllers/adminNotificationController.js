@@ -3,7 +3,7 @@ import Notification from "../models/Notification.js";
 /**
  * The admin's notification inbox.
  *
- * Everything else in the app had one already — the team leader, the employee
+ * Everything else in the app had one already — the operations manager, the employee
  * and the client each get their own — and plenty of code was dutifully writing
  * rows for admins the whole time: a client sending a message or asking for a
  * meeting, an employee submitting code, a delete request, a project being

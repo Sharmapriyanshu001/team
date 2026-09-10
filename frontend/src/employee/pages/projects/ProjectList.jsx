@@ -26,9 +26,9 @@ export default function ProjectList({ view, title, subtitle, emptyTitle, emptyMe
       render: (row) => row.client?.company || row.client?.name || "—",
     },
     {
-      key: "teamLeader",
-      header: "Team leader",
-      render: (row) => row.teamLeader?.name || "Unassigned",
+      key: "operationsManager",
+      header: "Operations Manager",
+      render: (row) => row.operationsManager?.name || "Unassigned",
     },
     {
       /**
@@ -36,7 +36,7 @@ export default function ProjectList({ view, title, subtitle, emptyTitle, emptyMe
        *
        * The date only shows when it was actually recorded. Memberships made
        * before this was tracked — or by an admin from their own screen — fall
-       * back to the project's team leader, who is answerable for it either
+       * back to the project's operations manager, who is answerable for it either
        * way, and say nothing about a date rather than inventing one.
        */
       key: "assignedBy",

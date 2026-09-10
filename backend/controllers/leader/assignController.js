@@ -9,7 +9,7 @@ import { notifyUser } from "../../utils/notify.js";
 import { syncAssignments } from "../../utils/projectTeam.js";
 
 /**
- * "Assign Work" — the team leader's one screen for handing a project down.
+ * "Assign Work" — the operations manager's one screen for handing a project down.
  *
  * The loop it closes: the admin gives a project to a leader, the leader puts
  * their own people on it and gives them tasks, and whatever those people
@@ -29,9 +29,9 @@ import { syncAssignments } from "../../utils/projectTeam.js";
  * not fall neatly along the org chart, and a leader who needs a hand from
  * somebody else's developer should not have to go to an admin for it.
  *
- * What stays out of reach: another team leader, an admin, a client, an
+ * What stays out of reach: another operations manager, an admin, a client, an
  * inactive account, a project they do not run, and every field that says who
- * owns the project — the client, the budget, the deadline, the team leader.
+ * owns the project — the client, the budget, the deadline, the operations manager.
  * All of it is checked below rather than left to the screen.
  */
 
@@ -50,7 +50,7 @@ const newlyAdded = (before, next) => {
  * This is the whole permission story for both handlers, and it is decided
  * against the database rather than against the payload: whatever arrives, what
  * comes back is the subset that really are active employees. An id belonging
- * to a team leader, an admin, a client or a disabled account is simply not in
+ * to an operations manager, an admin, a client or a disabled account is simply not in
  * the result, so there is no request shape that gets one through.
  *
  * The caller compares the two lengths and refuses the whole request if they
@@ -84,7 +84,7 @@ export const getAssignBoard = async (req, res) => {
     const { teamIds } = await getScope(req);
     const mine = new Set(teamIds.map(idOf));
 
-    const projects = await Project.find({ teamLeader: req.leader._id })
+    const projects = await Project.find({ operationsManager: req.leader._id })
       .populate("client", "name company")
       .populate("members", "name email designation department")
       .sort({ createdAt: -1 });
@@ -114,7 +114,7 @@ export const getAssignBoard = async (req, res) => {
        */
       CodeProject.find({
         project: { $in: projectIds },
-        teamLeaders: req.leader._id,
+        operationsManagers: req.leader._id,
         deletedAt: null,
       })
         .select("name stack project employees workspaceReady fileCount permissions")
@@ -213,14 +213,14 @@ export const getAssignBoard = async (req, res) => {
  * This is the step that makes a project appear on an employee's own screen:
  * their project list, their scope, and the check that lets them file code
  * against it are all driven by Project.members. So it is working access, and
- * nothing more — the client, the budget, the deadline, the team leader and the
+ * nothing more — the client, the budget, the deadline, the operations manager and the
  * project's owner are all untouched here and unreachable from this panel.
  */
 export const updateProjectMembers = async (req, res) => {
   try {
     const project = await Project.findOne({
       _id: req.params.id,
-      teamLeader: req.leader._id,
+      operationsManager: req.leader._id,
     });
 
     // Same answer for "no such project" and "not yours"
@@ -247,7 +247,7 @@ export const updateProjectMembers = async (req, res) => {
 
     /**
      * Anybody on the project who is not an active employee stays on it — a
-     * team leader the admin put there, say. Without this, a leader saving the
+     * operations manager the admin put there, say. Without this, a leader saving the
      * list from a screen that never showed those people would quietly remove
      * them.
      */
@@ -301,7 +301,7 @@ export const updateProjectMembers = async (req, res) => {
     const item = await Project.findById(project._id)
       .populate("client", "name company")
       .populate("members", "name email designation department")
-      .populate("teamLeader", "name email");
+      .populate("operationsManager", "name email");
 
     return res.status(200).json({
       message: added.length
@@ -329,7 +329,7 @@ export const updateProjectMembers = async (req, res) => {
  *
  *   the code project must be one the admin assigned to this leader
  *   every id must be an employee reporting to this leader
- *   teamLeaders, the per-project permissions, the archive and the project's
+ *   operationsManagers, the per-project permissions, the archive and the project's
  *   own record are not writable from here at all
  *
  * What an employee may then *do* in that workspace is still the admin's
@@ -339,7 +339,7 @@ export const shareCodeProjectWithTeam = async (req, res) => {
   try {
     const project = await CodeProject.findOne({
       _id: req.params.id,
-      teamLeaders: req.leader._id,
+      operationsManagers: req.leader._id,
       deletedAt: null,
     });
 
@@ -362,7 +362,7 @@ export const shareCodeProjectWithTeam = async (req, res) => {
     /**
      * Anybody on it who is not an active employee is left exactly as they are.
      * The assignment list this leader manages is the employee half of it; the
-     * team leaders on a code project are the admin's, and are edited on a
+     * operations managers on a code project are the admin's, and are edited on a
      * different field entirely.
      */
     const employees = new Set(

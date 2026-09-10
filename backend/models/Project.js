@@ -33,10 +33,48 @@ const projectSchema = new mongoose.Schema(
     code: { type: String, trim: true, default: "" },
     description: { type: String, trim: true, default: "" },
     client: { type: mongoose.Schema.Types.ObjectId, ref: "Client" },
-    teamLeader: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    operationsManager: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    // One row per member, saying which team leader put them on it and when
+    // One row per member, saying which operations manager put them on it and when
     memberAssignments: { type: [assignmentSchema], default: [] },
+    /**
+     * The job this one continues from.
+     *
+     * Copied from the client when a project is created, so that whoever opens
+     * this project can see what was built before without going looking. It can
+     * also be set or cleared per project, because the second job for a client
+     * is not always a continuation of the first.
+     *
+     * Self-referential and deliberately not a chain — it points at what came
+     * before, not at a list. Following it back is how the history is read.
+     */
+    previousProject: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
+
+    /**
+     * "Have we built this before?", answered while the project is being
+     * created, and the link to what was built.
+     *
+     * Beside `previousProject` rather than folded into it, because they answer
+     * different questions. That one points at another row in this database —
+     * the earlier job for the same client, picked from a list. This one is
+     * whatever the person creating the project has in their hand: the live
+     * site, the repository, a folder of the last build, a project on somebody
+     * else's panel. A URL is the only thing those have in common, so a URL is
+     * what is stored.
+     *
+     * Both can be set, and often should be. Neither is required.
+     */
+    existingWork: {
+      /**
+       * Deliberately three-valued: null is "nobody has been asked", false is
+       * "asked, and no". A project created before this existed answers null
+       * and is not quietly reported as fresh work.
+       */
+      builtBefore: { type: Boolean, default: null },
+      link: { type: String, trim: true, default: "" },
+      note: { type: String, trim: true, default: "" },
+    },
+
     status: { type: String, enum: PROJECT_STATUS, default: "planning" },
     priority: {
       type: String,

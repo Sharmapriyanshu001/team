@@ -26,7 +26,7 @@ const BLANK = {
   kind: "operations",
   description: "",
   manager: "",
-  teamLeaders: [],
+  operationsManagers: [],
   members: [],
 };
 
@@ -135,7 +135,7 @@ export default function Teams() {
             <p className="mt-3 text-sm font-medium text-slate-700">No teams yet</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-slate-400">
               Most studios run three: HR, Sales and Operations. Each gets one manager who answers
-              for its numbers, team leaders who run the day to day, and the people doing the work.
+              for its numbers, operations managers who run the day to day, and the people doing the work.
             </p>
           </div>
         </Card>
@@ -246,14 +246,14 @@ export default function Teams() {
           </Field>
 
           <Field
-            label="Team leaders"
+            label="Operations Managers"
             className="sm:col-span-2"
-            hint="They run the day to day. Being added here makes an employee a team leader."
+            hint="They run the day to day. Being added here makes an employee an operations manager."
           >
             <MultiSelect
               options={lookups.staffOptions}
-              value={form.teamLeaders}
-              onChange={(value) => setForm((f) => ({ ...f, teamLeaders: value }))}
+              value={form.operationsManagers}
+              onChange={(value) => setForm((f) => ({ ...f, operationsManagers: value }))}
               placeholder="Search staff…"
               emptyLabel="Nobody on record"
             />

@@ -20,7 +20,7 @@ const LANGUAGES = [
 ];
 
 /**
- * "Code shared with me" — identical for the employee and team leader panels,
+ * "Code shared with me" — identical for the employee and operations manager panels,
  * so both mount this with their own crud hook. The list only ever contains
  * submissions the admin handed to the signed-in user; the server decides that,
  * not this component.

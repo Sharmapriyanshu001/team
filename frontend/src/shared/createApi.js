@@ -4,7 +4,7 @@ import { closeSocket } from "./realtime";
 
 /**
  * One axios instance per panel. Each panel keeps its own token in localStorage
- * so an admin and a team leader can be signed in side by side without one
+ * so an admin and an operations manager can be signed in side by side without one
  * session clobbering the other.
  */
 /**

@@ -25,6 +25,8 @@ import {
   Loader,
   PageHeader,
   Select,
+  SelectOrOther,
+  Textarea,
 } from "../../../shared/components/ui";
 
 const EMPTY = {
@@ -37,6 +39,7 @@ const EMPTY = {
   joiningDate: "",
   status: "active",
   reportsTo: "",
+  address: "",
 
   documents: { aadhaarNumber: "", panNumber: "" },
   bank: { accountName: "", accountNumber: "", ifsc: "", bankName: "", branch: "", upi: "" },
@@ -44,7 +47,9 @@ const EMPTY = {
 };
 
 /** The files this form can carry, in the order the steps ask for them. */
-const IDENTITY_FILES = ["aadhaarFront", "aadhaarBack", "panFront", "panBack"];
+// The CV is filed with the identity papers — a fresher has one and no
+// previous employer, so it does not belong in the last step.
+const IDENTITY_FILES = ["aadhaarFront", "aadhaarBack", "panFront", "panBack", "resume"];
 const EMPLOYMENT_FILES = ["experienceLetter", "salarySlip", "relievingLetter"];
 
 const NO_FILES = [...IDENTITY_FILES, ...EMPLOYMENT_FILES].reduce(
@@ -54,7 +59,7 @@ const NO_FILES = [...IDENTITY_FILES, ...EMPLOYMENT_FILES].reduce(
 
 const STEPS = [
   { title: "Basic details", subtitle: "Who they are and how they sign in", icon: UserRound },
-  { title: "Documents", subtitle: "Aadhaar and PAN, front and back", icon: IdCard },
+  { title: "Documents", subtitle: "Aadhaar, PAN and their CV", icon: IdCard },
   { title: "Bank details", subtitle: "Where salary is paid", icon: Landmark },
   { title: "Previous company", subtitle: "Optional — leave blank for a fresher", icon: Building2 },
 ];
@@ -78,7 +83,40 @@ const digits = (value) => String(value || "").replace(/[\s-]/g, "");
  * be corrected until somebody photographed a five-year-old PAN card would be
  * the wrong way round — the server takes the same position.
  */
-const validateStep = (step, form, files, strict) => {
+/**
+ * The usual answers, not the only ones.
+ *
+ * Every one of these fields is a SelectOrOther, so a department or a job title
+ * nobody listed is typed in and stored exactly like a listed one. The list is
+ * here to stop three spellings of "Operations" rather than to limit what the
+ * company is allowed to have.
+ */
+const DEPARTMENTS = [
+  "Execution",
+  "Design",
+  "Operations",
+  "Sales",
+  "Human Resources",
+  "Accounts",
+  "Marketing",
+  "Admin",
+];
+
+const DESIGNATIONS = [
+  "Site Engineer",
+  "Civil Engineer",
+  "Architect",
+  "Interior Designer",
+  "Site Supervisor",
+  "Project Lead",
+  "Developer",
+  "UI/UX Designer",
+  "Accountant",
+  "HR Executive",
+  "Sales Executive"
+];
+
+const validateStep = (step, form) => {
   const problems = {};
 
   if (step === 0) {
@@ -87,22 +125,24 @@ const validateStep = (step, form, files, strict) => {
     if (!form.phone.trim()) problems.phone = "Enter a mobile number";
   }
 
+  /**
+   * Documents and bank are notes, not gates.
+   *
+   * Every field on these two steps used to be required to create an account,
+   * scans included — so nobody could be added until their PAN photo turned up,
+   * which is days after they start. What is written here is a hint printed
+   * beside the box; `blocking` below is what decides whether it stops the save,
+   * and for these two steps it never does.
+   */
   if (step === 1) {
     const aadhaar = digits(form.documents.aadhaarNumber);
     const pan = form.documents.panNumber.trim().toUpperCase();
 
-    if (aadhaar ? !AADHAAR.test(aadhaar) : strict) {
-      problems.aadhaarNumber = aadhaar ? "An Aadhaar number is 12 digits" : "Enter the Aadhaar number";
+    if (aadhaar && !AADHAAR.test(aadhaar)) {
+      problems.aadhaarNumber = "That does not look like a 12-digit Aadhaar — saved as typed";
     }
-    if (pan ? !PAN.test(pan) : strict) {
-      problems.panNumber = pan ? "A PAN looks like ABCDE1234F" : "Enter the PAN number";
-    }
-    if (strict) {
-      IDENTITY_FILES.forEach((name) => {
-        if (!files[name] && !form[fileSection(name)]?.[name]?.storedName) {
-          problems[name] = "Required";
-        }
-      });
+    if (pan && !PAN.test(pan)) {
+      problems.panNumber = "A PAN usually looks like ABCDE1234F — saved as typed";
     }
   }
 
@@ -110,14 +150,11 @@ const validateStep = (step, form, files, strict) => {
     const account = digits(form.bank.accountNumber);
     const ifsc = form.bank.ifsc.trim().toUpperCase();
 
-    if (strict && !form.bank.accountName.trim()) {
-      problems.accountName = "Enter the name on the account";
+    if (account && !ACCOUNT.test(account)) {
+      problems.accountNumber = "An account number is usually 9 to 18 digits — saved as typed";
     }
-    if (account ? !ACCOUNT.test(account) : strict) {
-      problems.accountNumber = account ? "An account number is 9 to 18 digits" : "Enter the account number";
-    }
-    if (ifsc ? !IFSC.test(ifsc) : strict) {
-      problems.ifsc = ifsc ? "An IFSC looks like HDFC0001234" : "Enter the IFSC code";
+    if (ifsc && !IFSC.test(ifsc)) {
+      problems.ifsc = "An IFSC usually looks like HDFC0001234 — saved as typed";
     }
   }
 
@@ -127,14 +164,10 @@ const validateStep = (step, form, files, strict) => {
   return problems;
 };
 
-/** Which sub-document a file belongs to, for reading what is already stored. */
-const fileSection = (name) =>
-  IDENTITY_FILES.includes(name) ? "documents" : "previousEmployment";
-
 const toDateInput = (value) => (value ? new Date(value).toISOString().slice(0, 10) : "");
 
 /**
- * Add or edit a team leader or an employee, in four steps.
+ * Add or edit an operations manager or an employee, in four steps.
  *
  * One form for both, as it always was: the two roles differ by which endpoint
  * it posts to and whether it asks who they report to, and nothing else. The
@@ -150,7 +183,18 @@ const toDateInput = (value) => (value ? new Date(value).toISOString().slice(0, 1
  * Nothing is written until the final step. There is no half-created employee
  * to clean up if somebody closes the tab at step three.
  */
-export default function StaffForm({ resource, title, listPath, showTeamLeader }) {
+export default function StaffForm({
+  resource,
+  title,
+  listPath,
+  showOperationsManager,
+  /**
+   * Inside the Team & Accounts panel the page already has a heading and the
+   * type dropdown, so the form drops its own PageHeader for a compact bar —
+   * same title, same way back, one `h1` on the page.
+   */
+  embedded = false,
+}) {
   const navigate = useNavigate();
   const lookups = useLookups();
 
@@ -175,7 +219,16 @@ export default function StaffForm({ resource, title, listPath, showTeamLeader })
   const [problems, setProblems] = useState({});
 
   // On an edit, everything the record already has is valid by definition —
-  // see validateStep
+  /**
+   * Which steps may refuse to move on.
+   *
+   * Only the first: name, email and phone ARE the account. Everything after it
+   * is paperwork that arrives on its own schedule, and holding the login
+   * hostage to it is what stopped employees being added at all.
+   */
+  const blocking = (step) => step === 0;
+
+  // Kept for the fields that still mark themselves required — the first step's
   const strict = !isEdit;
 
   /** One field inside one of the three sub-documents. */
@@ -197,8 +250,12 @@ export default function StaffForm({ resource, title, listPath, showTeamLeader })
   };
 
   const next = () => {
-    const found = validateStep(step, form, files, strict);
-    if (Object.keys(found).length) return setProblems(found);
+    const found = validateStep(step, form);
+    setProblems(found);
+
+    // A hint on a non-blocking step is shown and stepped past; only the
+    // identity step can actually hold somebody where they are.
+    if (blocking(step) && Object.keys(found).length) return;
     goTo(step + 1);
   };
 
@@ -215,7 +272,9 @@ export default function StaffForm({ resource, title, listPath, showTeamLeader })
     if (step < STEPS.length - 1) return next();
 
     for (let i = 0; i < STEPS.length; i += 1) {
-      const found = validateStep(i, form, files, strict);
+      if (!blocking(i)) continue;
+
+      const found = validateStep(i, form);
       if (Object.keys(found).length) {
         setStep(i);
         setProblems(found);
@@ -238,10 +297,11 @@ export default function StaffForm({ resource, title, listPath, showTeamLeader })
       designation: form.designation,
       department: form.department,
       status: form.status,
+      address: form.address,
     };
     if (form.password) basics.password = form.password;
     if (form.joiningDate) basics.joiningDate = form.joiningDate;
-    if (showTeamLeader && form.reportsTo) basics.reportsTo = form.reportsTo;
+    if (showOperationsManager && form.reportsTo) basics.reportsTo = form.reportsTo;
 
     Object.entries(basics).forEach(([key, value]) => body.append(key, value ?? ""));
 
@@ -272,21 +332,32 @@ export default function StaffForm({ resource, title, listPath, showTeamLeader })
   const last = step === STEPS.length - 1;
   const Icon = STEPS[step].icon;
 
+  const heading = isEdit ? `Edit ${title}` : `Add ${title}`;
+  const blurb = isEdit
+    ? "Update details, documents, bank and reporting line"
+    : "Four steps — their mobile number becomes the login password";
+
   return (
     <div>
-      <PageHeader
-        title={isEdit ? `Edit ${title}` : `Add ${title}`}
-        subtitle={
-          isEdit
-            ? "Update details, documents, bank and reporting line"
-            : "Four steps — their mobile number becomes the login password"
-        }
-      >
-        <Button variant="outline" onClick={() => navigate(listPath)}>
-          <ArrowLeft size={15} />
-          Back
-        </Button>
-      </PageHeader>
+      {embedded ? (
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">{heading}</h2>
+            <p className="mt-0.5 text-xs text-slate-500">{blurb}</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate(listPath)}>
+            <ArrowLeft size={15} />
+            Back to list
+          </Button>
+        </div>
+      ) : (
+        <PageHeader title={heading} subtitle={blurb}>
+          <Button variant="outline" onClick={() => navigate(listPath)}>
+            <ArrowLeft size={15} />
+            Back
+          </Button>
+        </PageHeader>
+      )}
 
       <form onSubmit={handleSubmit} className="max-w-3xl">
         <Stepper
@@ -318,7 +389,7 @@ export default function StaffForm({ resource, title, listPath, showTeamLeader })
                 change={change}
                 problems={problems}
                 lookups={lookups}
-                showTeamLeader={showTeamLeader}
+                showOperationsManager={showOperationsManager}
                 isEdit={isEdit}
                 title={title}
               />
@@ -433,7 +504,7 @@ function Stepper({ step, furthest, onGo }) {
 
 /* ------------------------------------------------------------------ steps */
 
-function BasicStep({ form, change, problems, lookups, showTeamLeader, isEdit, title }) {
+function BasicStep({ form, change, problems, lookups, showOperationsManager, isEdit, title }) {
   return (
     <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -460,26 +531,37 @@ function BasicStep({ form, change, problems, lookups, showTeamLeader, isEdit, ti
         </Field>
 
         <Field label="Designation">
-          <Input
+          <SelectOrOther
             name="designation"
             value={form.designation}
             onChange={change}
-            placeholder="Site Engineer"
+            placeholder="Select designation"
+            options={DESIGNATIONS}
           />
         </Field>
 
         <Field label="Department">
-          <Select
+          <SelectOrOther
             name="department"
             value={form.department}
             onChange={change}
             placeholder="Select department"
-            options={["Execution", "Design", "Operations", "Accounts", "Admin"]}
+            options={DEPARTMENTS}
           />
         </Field>
 
         <Field label="Joining date">
           <Input name="joiningDate" type="date" value={form.joiningDate} onChange={change} />
+        </Field>
+
+        <Field label="Address" className="sm:col-span-2">
+          <Textarea
+            name="address"
+            rows={2}
+            value={form.address}
+            onChange={change}
+            placeholder="House, street, city, state, PIN"
+          />
         </Field>
 
         <Field label="Status">
@@ -491,13 +573,13 @@ function BasicStep({ form, change, problems, lookups, showTeamLeader, isEdit, ti
           />
         </Field>
 
-        {showTeamLeader && (
+        {showOperationsManager && (
           <Field label="Reports to" className="sm:col-span-2">
             <Select
               name="reportsTo"
               value={form.reportsTo}
               onChange={change}
-              placeholder="No team leader"
+              placeholder="No operations manager"
               options={lookups.leaderOptions}
             />
           </Field>
@@ -560,6 +642,8 @@ function DocumentsStep({
       <Slot {...shared} name="aadhaarBack" label="Aadhaar — back" required={strict} />
       <Slot {...shared} name="panFront" label="PAN — front" required={strict} />
       <Slot {...shared} name="panBack" label="PAN — back" required={strict} />
+      {/* Never required — a CV arrives days after somebody starts as often as not */}
+      <Slot {...shared} name="resume" label="CV / Resume" />
     </div>
   );
 }

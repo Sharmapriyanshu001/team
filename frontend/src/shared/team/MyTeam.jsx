@@ -71,7 +71,7 @@ export default function MyTeam({ api, base }) {
                     Nothing set on you personally this month.
                   </p>
                 ) : (
-                  <div className="space-y-5">
+                  <div className="space-y-4">
                     {mine.map((target) => (
                       <Progress key={target._id} target={target} />
                     ))}
@@ -83,7 +83,7 @@ export default function MyTeam({ api, base }) {
             {teamTargets.length > 0 && (
               <Card>
                 <CardHeader title="What the team is aiming at" />
-                <div className="space-y-5 px-4 py-4">
+                <div className="space-y-4 px-4 py-4">
                   {teamTargets.map((target) => (
                     <Progress key={target._id} target={target} />
                   ))}
@@ -110,11 +110,11 @@ export default function MyTeam({ api, base }) {
                     </div>
                   )}
 
-                  {(team.teamLeaders || []).map((person) => (
+                  {(team.operationsManagers || []).map((person) => (
                     <div key={person._id} className="flex items-center gap-2 px-4 py-2.5 text-sm">
                       <span className="text-slate-900">{person.name}</span>
                       <span className="text-xs text-slate-400">
-                        team leader{person.designation && ` · ${person.designation}`}
+                        operations manager{person.designation && ` · ${person.designation}`}
                       </span>
                     </div>
                   ))}

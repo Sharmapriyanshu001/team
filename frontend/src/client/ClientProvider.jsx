@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import clientApi from "./clientApi";
+import useLiveNotifications from "../shared/hooks/useLiveNotifications";
 import { readStoredUser } from "../shared/createApi";
 import { ClientContext } from "./clientContext";
 
@@ -42,6 +43,12 @@ export default function ClientProvider({ children }) {
   useEffect(() => {
     refreshUnread();
   }, [refreshUnread]);
+
+  /**
+   * A notification pushed to this account updates the badge at once, so
+   * nobody has to reload a page to find out something happened to them.
+   */
+  useLiveNotifications("/client", refreshUnread);
 
   return (
     <ClientContext.Provider value={{ client, setClient, flags, unread, refreshUnread }}>

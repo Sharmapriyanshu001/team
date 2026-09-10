@@ -43,7 +43,7 @@ export const leaderLogin = async (req, res) => {
      * place for them, widened to their whole department by leaderAuth's scope.
      */
     if (!LEADER_ROLES.includes(user.role)) {
-      return res.status(403).json({ message: "This account is not a team leader" });
+      return res.status(403).json({ message: "This account is not an operations manager" });
     }
     if (user.status !== "active") {
       return res.status(403).json({ message: "This account is inactive" });
@@ -55,9 +55,9 @@ export const leaderLogin = async (req, res) => {
       actor: user._id,
       actorName: user.name,
       action: "login",
-      entity: "Team Leader",
+      entity: "Operations Manager",
       entityId: user._id,
-      message: `${user.name} (team leader) logged in`,
+      message: `${user.name} (operations manager) logged in`,
     }).catch((err) => console.error("leader login log error:", err.message));
 
     return res.status(200).json({

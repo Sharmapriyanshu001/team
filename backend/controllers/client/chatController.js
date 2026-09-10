@@ -10,7 +10,7 @@ import { emitMessage } from "../../utils/realtime.js";
 /**
  * The client's three tabs, each a separate thread keyed on their own id:
  *   admin        -> scope "client"
- *   team_leader  -> scope "client_leader"    (only if the admin enabled it)
+ *   operations_manager  -> scope "client_leader"    (only if the admin enabled it)
  *   employees    -> scope "client_employee"  (only if the admin enabled it)
  */
 const readFlags = async () => {
@@ -38,11 +38,11 @@ const resolveRooms = async (req, tab) => {
     };
   }
 
-  if (tab === "team_leader") {
+  if (tab === "operations_manager") {
     if (!flags.leaderChatEnabled) return { disabled: true };
 
     const { projectIds } = await getScope(req);
-    const leaderIds = await Project.find({ _id: { $in: projectIds } }).distinct("teamLeader");
+    const leaderIds = await Project.find({ _id: { $in: projectIds } }).distinct("operationsManager");
     const leaders = await User.find({ _id: { $in: leaderIds.filter(Boolean) } })
       .select("name designation")
       .sort({ name: 1 });
@@ -185,13 +185,13 @@ export const sendMessage = async (req, res) => {
         message: text.slice(0, 120),
         link: "/admin/chat/clients",
       });
-    } else if (req.params.tab === "team_leader") {
-      const leaderIds = await Project.find({ _id: { $in: projectIds } }).distinct("teamLeader");
+    } else if (req.params.tab === "operations_manager") {
+      const leaderIds = await Project.find({ _id: { $in: projectIds } }).distinct("operationsManager");
       notifyUsers(leaderIds, {
         type: "chat",
         title: `Message from ${req.client.name}`,
         message: text.slice(0, 120),
-        link: "/team-leader/chat/clients",
+        link: "/operation-manager/chat/clients",
       });
     } else if (req.params.tab === "employees") {
       const memberIds = await Project.find({ _id: { $in: projectIds } }).distinct("members");

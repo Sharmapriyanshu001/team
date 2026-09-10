@@ -1,5 +1,5 @@
 /**
- * Additive demo data — team leaders, employees, clients, projects, tasks,
+ * Additive demo data — operations managers, employees, clients, projects, tasks,
  * issues, attendance and work logs, enough to make every screen show
  * something real.
  *
@@ -193,7 +193,7 @@ const ROLES = [
     permissions: {
       dashboard: ["view"],
       clients: ["view"],
-      team_leaders: ["view"],
+      operations_managers: ["view"],
       employees: ["view"],
       projects: ["view"],
       tasks: ["view"],
@@ -389,22 +389,22 @@ const seed = async () => {
     clients.push(doc);
   }
 
-  /* ------------------------------------------------------- team leaders */
+  /* ------------------------------------------------------- operations managers */
 
   const leaders = [];
   for (const entry of LEADERS) {
     let doc = await User.findOne({ email: entry.email });
     if (doc) {
-      note(summary.skipped, "team leaders");
+      note(summary.skipped, "operations managers");
     } else {
       doc = await User.create({
         ...entry,
         password: hashPassword(entry.phone),
-        role: "team_leader",
+        role: "operations_manager",
         status: "active",
         joiningDate: daysFromNow(-600 - leaders.length * 90),
       });
-      note(summary.created, "team leaders");
+      note(summary.created, "operations managers");
     }
     leaders.push(doc);
   }
@@ -449,7 +449,7 @@ const seed = async () => {
         code: entry.code,
         description: `${TAG} ${entry.name}`,
         client: entry.client === null ? undefined : clients[entry.client]?._id,
-        teamLeader: leaders[entry.leader]?._id,
+        operationsManager: leaders[entry.leader]?._id,
         members,
         status: entry.status,
         priority: entry.priority,
@@ -594,7 +594,7 @@ const seed = async () => {
   const row = (role, email, password) =>
     console.log("  " + role.padEnd(13) + email.padEnd(38) + password);
 
-  LEADERS.forEach((l) => row("Team leader", l.email, l.phone));
+  LEADERS.forEach((l) => row("Operations Manager", l.email, l.phone));
   EMPLOYEES.forEach((e) => row("Employee", e.email, e.phone));
   CLIENTS.forEach((c) => row("Client", c.email, c.phone));
 

@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 
 import { initRealtime } from "./utils/realtime.js";
+import { dropRoleCapIndexes } from "./utils/dbGuards.js";
 
 import {
   apiLimiter,
@@ -18,6 +19,9 @@ import { servePreview, servePreviewSlug } from "./controllers/previewController.
 
 import contactRoutes from "./routes/contactRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import hrRoutes from "./routes/hrRoutes.js";
+import salesRoutes from "./routes/salesRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 import leaderRoutes from "./routes/leaderRoutes.js";
 import employeeRoutes from "./routes/employeeRoutes.js";
 import clientRoutes from "./routes/clientRoutes.js";
@@ -81,7 +85,7 @@ app.get("/", (req, res) => {
 });
 
 // Routes. There is deliberately no public sign-up or password-reset endpoint —
-// every account (client, team leader, employee) is created and managed by an
+// every account (client, operations manager, employee) is created and managed by an
 // admin from the admin panel.
 
 // Everything under /api is rate limited. The per-route login limiters are
@@ -90,6 +94,37 @@ app.use("/api", apiLimiter);
 
 app.use("/api/contact", contactRoutes);
 app.use("/api/admin", adminRoutes);
+/**
+ * HR gets a panel of its own rather than a corner of the admin one.
+ *
+ * Mounted separately so an HR token is minted, accepted and refused by its own
+ * middleware — and so "HR reaches only HR" is a fact about this routing table
+ * rather than a permission somebody could widen by mistake. There is no route
+ * under here that touches a lead, an invoice, a project or the vault.
+ */
+app.use("/api/hr", hrRoutes);
+/**
+ * Sales gets a panel of its own for the same reason HR did: a separate door is
+ * a stronger guarantee than a filtered menu. See routes/salesRoutes.js.
+ */
+/**
+ * The one login everybody uses. Mounted before the panels because it belongs
+ * to none of them — see controllers/authController.js.
+ */
+app.use("/api/auth", authRoutes);
+
+app.use("/api/sales", salesRoutes);
+/**
+ * The delivery panel's API, reachable under both names.
+ *
+ * The panel is now Operations Manager and its pages live at
+ * /operation-manager, so the endpoint answers there too. /api/leader is kept
+ * working rather than retired: the same router serves the `manager` role,
+ * which is not being renamed, and every call inside the panel already points
+ * at it. Moving them all would be two hundred edits for no user-visible gain,
+ * and a missed one is a screen that silently 404s.
+ */
+app.use("/api/operations-manager", leaderRoutes);
 app.use("/api/leader", leaderRoutes);
 app.use("/api/employee", employeeRoutes);
 app.use("/api/client", clientRoutes);
@@ -153,10 +188,51 @@ const PORT = process.env.PORT || 5000;
 // Express is wrapped in a plain HTTP server so Socket.IO can share the port.
 const server = http.createServer(app);
 
+/**
+ * Atlas refuses a connection for reasons that outlive a single attempt (a
+ * dropped wifi link, a laptop IP that has not been re-whitelisted, a cluster
+ * still waking from sleep). Exiting on the first failure turned every one of
+ * those into a crashed nodemon that only a manual restart brings back, so the
+ * initial connect retries with a widening gap and reports what it is waiting
+ * on. Once connected, the driver handles reconnects on its own.
+ */
+const MONGO_RETRIES = Number(process.env.MONGO_RETRIES || 5);
+
+const connectMongo = async () => {
+  if (!process.env.MONGO_URI) {
+    throw new Error("MONGO_URI is not set — add it to backend/.env");
+  }
+
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await mongoose.connect(process.env.MONGO_URI, {
+        serverSelectionTimeoutMS: Number(process.env.MONGO_TIMEOUT_MS || 15000),
+      });
+      return;
+    } catch (err) {
+      if (attempt >= MONGO_RETRIES) throw err;
+      const waitMs = Math.min(30000, 2000 * 2 ** (attempt - 1));
+      console.warn(
+        `⏳ MongoDB connect failed (attempt ${attempt}/${MONGO_RETRIES}): ${err.message}`
+      );
+      console.warn(`   retrying in ${Math.round(waitMs / 1000)}s…`);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+};
+
 const startServer = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await connectMongo();
     console.log("✅ MongoDB connected");
+
+    /**
+     * This database arrived carrying a unique index that capped the panel at
+     * exactly one HR account. Dropped here rather than by hand because a
+     * restore from an older backup would otherwise bring the ceiling back
+     * silently, and nobody would find out until the next hire. Never throws.
+     */
+    await dropRoleCapIndexes();
     initRealtime(server);
     server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
     previewApp.listen(PREVIEW_PORT, () =>
@@ -164,6 +240,10 @@ const startServer = async () => {
     );
   } catch (err) {
     console.error("❌ MongoDB connection error:", err.message);
+    console.error(
+      "   Checks: is this machine's IP on the Atlas access list, is the cluster awake,"
+    );
+    console.error("   and is MONGO_URI in backend/.env correct?");
     process.exit(1);
   }
 };

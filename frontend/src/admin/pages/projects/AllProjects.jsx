@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, UserPlus } from "lucide-react";
 
 import { useCrud } from "../../hooks/crud";
 import { money } from "../../../shared/format";
@@ -20,6 +20,8 @@ export default function AllProjects() {
   const [deleting, setDeleting] = useState(false);
   // Row that is open in the details drawer
   const [viewing, setViewing] = useState(null);
+  // The same drawer, opened straight on its team editor
+  const [assigning, setAssigning] = useState(null);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -50,9 +52,18 @@ export default function AllProjects() {
       render: (row) => row.client?.company || row.client?.name || "—",
     },
     {
-      key: "teamLeader",
-      header: "Team leader",
-      render: (row) => row.teamLeader?.name || "Unassigned",
+      key: "operationsManager",
+      header: "Team",
+      render: (row) => (
+        <div>
+          <p className="text-sm text-slate-800">{row.operationsManager?.name || "Unassigned"}</p>
+          <p className="text-xs text-slate-400">
+            {row.members?.length
+              ? `${row.members.length} ${row.members.length === 1 ? "member" : "members"}`
+              : "nobody on it"}
+          </p>
+        </div>
+      ),
     },
     { key: "status", header: "Status", render: (row) => <Badge value={row.status} /> },
     { key: "priority", header: "Priority", render: (row) => <Badge value={row.priority} /> },
@@ -76,6 +87,15 @@ export default function AllProjects() {
             className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
           >
             <Eye size={15} />
+          </button>
+          {/* Assigning from here rather than from a separate screen: the admin
+              is already looking at the project they want to staff. */}
+          <button
+            onClick={() => setAssigning(row)}
+            title={row.members?.length ? "Add or remove people" : "Assign people"}
+            className="rounded-md p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+          >
+            <UserPlus size={15} />
           </button>
           <button
             onClick={() => navigate(`/admin/projects/create?id=${row._id}`)}
@@ -150,12 +170,31 @@ export default function AllProjects() {
         />
       </Card>
 
+      {/**
+        * Keyed by which project, and by how it was opened.
+        *
+        * The drawer seeds its own state from the project it is given — which
+        * team is being edited, whether the editor is expanded — so opening a
+        * second project has to mount a second drawer rather than hand new
+        * props to the old one. Without the key, clicking assign on one
+        * project after viewing another showed the first project's team.
+        */}
       <ProjectDetail
-        open={Boolean(viewing)}
-        id={viewing?._id}
-        onClose={() => setViewing(null)}
+        key={`${(viewing || assigning)?._id || "none"}-${assigning ? "team" : "view"}`}
+        open={Boolean(viewing || assigning)}
+        id={(viewing || assigning)?._id}
+        startOnTeam={Boolean(assigning)}
+        onClose={() => {
+          setViewing(null);
+          setAssigning(null);
+        }}
         onEdit={(id) => navigate(`/admin/projects/create?id=${id}`)}
-        onReview={() => navigate(`/admin/tasks/reviews?project=${viewing._id}`)}
+        onReview={() =>
+          navigate(`/admin/tasks/reviews?project=${(viewing || assigning)?._id}`)
+        }
+        // The list shows the leader, the member count and the progress bar —
+        // every one of which the drawer can now change
+        onChanged={crud.refresh}
       />
 
       <ConfirmDialog

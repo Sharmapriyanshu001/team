@@ -10,7 +10,7 @@ import { emitMessage } from "../../utils/realtime.js";
 
 /**
  * The employee's three tabs:
- *   team_leader -> scope "employee",       room = their own id
+ *   operations_manager -> scope "employee",       room = their own id
  *   admin       -> scope "employee_admin", room = their own id
  *   client      -> scope "client",         room = a client on their projects
  */
@@ -20,7 +20,7 @@ const clientChatEnabled = async () => {
 };
 
 const resolveRooms = async (req, tab) => {
-  if (tab === "team_leader") {
+  if (tab === "operations_manager") {
     const { leaderId } = await getScope(req);
     if (!leaderId) return { scope: "employee", rooms: [] };
 
@@ -30,7 +30,7 @@ const resolveRooms = async (req, tab) => {
       rooms: [
         {
           id: req.employee._id,
-          name: leader?.name || "Team Leader",
+          name: leader?.name || "Operations Manager",
           subtitle: leader?.designation || leader?.email || "",
         },
       ],
@@ -177,13 +177,13 @@ export const sendMessage = async (req, res) => {
     emitMessage(scope, req.params.roomId, message);
 
     // Ping whoever is on the other end of this thread
-    if (req.params.tab === "team_leader") {
+    if (req.params.tab === "operations_manager") {
       const { leaderId } = await getScope(req);
       notifyUser(leaderId, {
         type: "chat",
         title: `Message from ${req.employee.name}`,
         message: text.slice(0, 120),
-        link: "/team-leader/chat/employees",
+        link: "/operation-manager/chat/employees",
       });
     } else if (req.params.tab === "admin") {
       const admins = await User.find({ role: { $in: ADMIN_ROLES } }).select("_id");

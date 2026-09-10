@@ -20,6 +20,17 @@ import {
 } from "../controllers/employee/authController.js";
 import { getDashboard } from "../controllers/employee/dashboardController.js";
 import {
+  myIncentive,
+  myIncentiveHistory,
+} from "../controllers/employee/incentiveController.js";
+import {
+  applyForLeave,
+  myLeaveDetail,
+  myLeavePolicies,
+  myLeaves,
+  withdrawLeave,
+} from "../controllers/employee/leaveController.js";
+import {
   listTasks,
   getTask,
   updateTaskStatus,
@@ -98,6 +109,25 @@ import {
   markAllRead,
   getLookups,
 } from "../controllers/employee/workspaceController.js";
+import {
+  departmentPerformance,
+  myReports,
+  orgChart,
+  reportContext,
+  reportDetail,
+  reportInbox,
+  respondToReport,
+  reviewReport,
+  submitReport,
+  withdrawReport,
+} from "../controllers/reportChainController.js";
+import {
+  countNewChangeRequests,
+  getChangeRequest,
+  listChangeRequests,
+  updateChangeRequest,
+} from "../controllers/changeRequestController.js";
+import { listBonuses } from "../controllers/bonusController.js";
 
 const router = express.Router();
 
@@ -119,7 +149,7 @@ router.get("/dashboard", getDashboard);
 router.get("/projects", listProjects);
 
 /**
- * Everything a team leader has handed them, grouped and dated.
+ * Everything an operations manager has handed them, grouped and dated.
  *
  * Reads only what this account can already reach — their projects, their
  * tasks, the workspaces they were given. It is a different arrangement of
@@ -140,6 +170,27 @@ router.get("/tasks/new-count", countNewTasks);
 router.put("/tasks/seen", markTasksSeen);
 router.get("/tasks/:id", getTask);
 router.put("/tasks/:id", updateTaskStatus);
+
+/* ------------------------------------------------------------- bonuses */
+
+/**
+ * What this employee has earned on top of their tasks. Their own rows only —
+ * the scope comes from the token, and the by-project breakdown is not mounted
+ * here because it would be everybody's.
+ */
+router.get("/bonuses", listBonuses);
+
+/* ------------------------------------------------------- change requests */
+
+/**
+ * Changes a client asked for on a project this employee is on. They can move
+ * the progress and finish one; turning a client down is a manager's call, and
+ * the controller refuses it here.
+ */
+router.get("/change-requests/new-count", countNewChangeRequests);
+router.get("/change-requests", listChangeRequests);
+router.get("/change-requests/:id", getChangeRequest);
+router.put("/change-requests/:id", updateChangeRequest);
 
 /* ------------------------------------------------------------------ chat */
 
@@ -256,8 +307,6 @@ router.put("/notifications/:id/read", markNotificationRead);
 
 router.get("/lookups", getLookups);
 
-export default router;
-
 /* ------------------------------------------------------------ google play */
 
 /**
@@ -299,3 +348,66 @@ router.post("/ads/campaigns/:campaignId/days", staffRecordDay);
 
 /** The teams this account is on, and the targets it carries this month. */
 router.get("/team/mine", myTeam);
+
+/* --------------------------------------------------------------- my leave */
+
+/**
+ * Asking for time off, and following what happened to the request.
+ *
+ * Every route here is scoped to this account at the query level, so an
+ * employee reaches their own requests and no one else's.
+ *
+ * There is deliberately no decide route. Approving lives on
+ * PUT /api/hr/leaves/:id/decide and stays there, so there is no path by
+ * which somebody approves their own leave.
+ *
+ * "leave-policies" and the "withdraw" sub-path are declared above "/:id" so
+ * neither word is read as an id — the same reason every other named
+ * sub-path in this file sits where it does.
+ */
+router.get("/leave-policies", myLeavePolicies);
+
+router.get("/leaves", myLeaves);
+router.post("/leaves", applyForLeave);
+/** Taking back a request HR has not decided yet. Pending only. */
+router.put("/leaves/:id/withdraw", withdrawLeave);
+router.get("/leaves/:id", myLeaveDetail);
+
+/* ------------------------------------------------------- the reporting chain */
+
+/**
+ * Team Member → Manager → HR → Admin, and the answer back down.
+ *
+ * The same handlers serve every panel — the direction of travel is worked out
+ * from who is asking, not from which door they came through. See
+ * controllers/reportChainController.js.
+ *
+ * Named sub-paths ahead of "/:id" so none of them is read as a report id.
+ */
+router.get("/reports/context", reportContext);
+router.get("/reports/mine", myReports);
+router.get("/reports/inbox", reportInbox);
+router.get("/reports/departments", departmentPerformance);
+router.get("/reports/org", orgChart);
+router.post("/reports", submitReport);
+router.put("/reports/:id/review", reviewReport);
+router.put("/reports/:id/respond", respondToReport);
+router.get("/reports/:id", reportDetail);
+router.delete("/reports/:id", withdrawReport);
+
+/* ------------------------------------------------------------ incentive */
+
+/**
+ * What this month is worth, and why.
+ *
+ * Read-only. The task-derived part answers to the tasks themselves and the
+ * adjustments are HR's, so there is nothing here an employee could change
+ * about their own score — which is the point of showing it to them in full.
+ *
+ * "history" sits above nothing ambiguous, but is declared first out of the
+ * same habit the rest of this file follows.
+ */
+router.get("/incentive/history", myIncentiveHistory);
+router.get("/incentive", myIncentive);
+
+export default router;

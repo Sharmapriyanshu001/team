@@ -7,7 +7,7 @@ export default function ActiveProjects() {
       title="Active Projects"
       subtitle="Projects you are currently on"
       emptyTitle="No active projects"
-      emptyMessage="Your team leader adds you to projects from the admin side."
+      emptyMessage="Your operations manager adds you to projects from the admin side."
     />
   );
 }

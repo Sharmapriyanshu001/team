@@ -43,6 +43,18 @@ export const buildCrud = (Model, options = {}) => {
     createDefaults = {},
     // Query conditions derived from the request (date ranges and the like)
     extraQuery,
+    /**
+     * Whether the list also answers with the tiles above it: how many records
+     * there are, how many are active, and which departments actually exist.
+     *
+     * Counted here rather than in the browser because a page holds twenty-five
+     * rows and the answer is about all of them — counting "active" client-side
+     * would report on one page and call it the company.
+     *
+     * Off by default, so every list that never asked for it sends exactly what
+     * it sent before.
+     */
+    summary = false,
     beforeSave,
     // Side effects once a record is saved — notifications, mostly.
     // Called as afterSave(doc, req, { isNew, previous })
@@ -75,6 +87,42 @@ export const buildCrud = (Model, options = {}) => {
     return query;
   };
 
+  /**
+   * The tiles above the table, and the departments its filter may offer.
+   *
+   * The status filter is lifted before counting, so switching between All,
+   * Active and Inactive does not change the numbers being switched between —
+   * a tile that reads "Active 21" and then "Active 21 of 21" the moment it is
+   * clicked is telling you nothing. The department list ignores the department
+   * filter for the same reason: a dropdown that collapses to the one thing
+   * already picked cannot be used to pick anything else.
+   *
+   * Both still respect the search box and the list's own scope, because those
+   * decide which people are being looked at at all.
+   */
+  const summaryFor = async (req) => {
+    const counted = buildQuery(req);
+    delete counted.status;
+
+    const forDepartments = { ...counted };
+    delete forDepartments.department;
+
+    const [total, active, departments] = await Promise.all([
+      Model.countDocuments(counted),
+      Model.countDocuments({ ...counted, status: "active" }),
+      Model.distinct("department", forDepartments),
+    ]);
+
+    return {
+      total,
+      active,
+      inactive: total - active,
+      // Blank for everybody who has not been given one yet, which is not a
+      // department and must not become an option in the filter
+      departments: departments.filter(Boolean).sort((a, b) => a.localeCompare(b)),
+    };
+  };
+
   const list = async (req, res) => {
     try {
       const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -97,6 +145,7 @@ export const buildCrud = (Model, options = {}) => {
         total,
         page,
         pages: Math.ceil(total / limit) || 1,
+        ...(summary ? { summary: await summaryFor(req) } : {}),
       });
     } catch (err) {
       console.error(`${entity} list error:`, err);

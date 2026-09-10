@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import { logActivity } from "../utils/activity.js";
 import { notifyUser } from "../utils/notify.js";
 import { copyStoredFile, removeStoredFile } from "../utils/uploads.js";
+import { taskLinkFor } from "../utils/taskLink.js";
 
 /**
  * "Assign work" from the Files panel: one brief handed to any number of team
@@ -17,10 +18,10 @@ import { copyStoredFile, removeStoredFile } from "../utils/uploads.js";
  * the records look exactly like singly-assigned ones.
  */
 
-const panelLink = (role) =>
-  role === "team_leader" ? "/team-leader/tasks/pending" : "/employee/tasks/pending";
+// One rule for where somebody's work lives, shared with the task controllers
+const panelLink = (role) => taskLinkFor(role);
 
-const filesLink = (role) => (role === "team_leader" ? "/team-leader/files" : "/employee/files");
+const filesLink = (role) => (role === "operations_manager" ? "/operation-manager/files" : "/employee/files");
 
 const startOfToday = () => {
   const d = new Date();
@@ -77,14 +78,14 @@ export const assignWork = async (req, res) => {
 
     const people = await User.find({
       _id: { $in: [...wanted.keys()] },
-      role: { $in: ["team_leader", "employee"] },
+      role: { $in: ["operations_manager", "employee"] },
       status: "active",
     }).select("name email role");
 
     if (people.length !== wanted.size) {
       discard();
       return res.status(400).json({
-        message: "One of the people you picked is no longer an active team leader or employee",
+        message: "One of the people you picked is no longer an active operations manager or employee",
       });
     }
 

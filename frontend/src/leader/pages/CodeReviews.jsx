@@ -194,7 +194,7 @@ function SubmissionCard({ row, onView, onDecide }) {
   const latest = (row.versions || [])[(row.versions || []).length - 1];
 
   return (
-    <Card className="p-4">
+    <Card className="px-4 py-3">
       <div className="flex flex-wrap items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
           <FileCode size={16} />

@@ -86,7 +86,7 @@ export default function Profile() {
   const { askSignOut, signOutDialog } = useSignOut({
     tokenKey: "employeeToken",
     userKey: "employee",
-    loginPath: "/employee/login",
+    loginPath: "/",
     panel: "your workspace",
   });
 
@@ -127,9 +127,9 @@ export default function Profile() {
                 </dd>
               </div>
               <div className="flex justify-between gap-2">
-                <dt className="text-slate-500">Team leader</dt>
+                <dt className="text-slate-500">Operations Manager</dt>
                 <dd className="truncate font-medium text-slate-800">
-                  {employee?.teamLeader?.name || "—"}
+                  {employee?.operationsManager?.name || "—"}
                 </dd>
               </div>
               <div className="flex justify-between gap-2">
@@ -142,11 +142,11 @@ export default function Profile() {
               </div>
             </dl>
 
-            {employee?.teamLeader && (
+            {employee?.operationsManager && (
               <Button
                 variant="outline"
                 className="mt-4 w-full"
-                onClick={() => navigate("/employee/chat/team-leader")}
+                onClick={() => navigate("/employee/chat/operation-manager")}
               >
                 <MessageSquare size={15} />
                 Message your leader
@@ -154,7 +154,7 @@ export default function Profile() {
             )}
 
             <p className="mt-4 text-[11px] text-slate-400">
-              Your designation, department and team leader are managed by the admin.
+              Your designation, department and operations manager are managed by the admin.
             </p>
           </div>
         </Card>

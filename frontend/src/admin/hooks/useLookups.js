@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import adminApi from "../adminApi";
 
-const EMPTY = { clients: [], teamLeaders: [], employees: [], projects: [], staff: [] };
+const EMPTY = { clients: [], operationsManagers: [], employees: [], projects: [], staff: [] };
 
 // Dropdown options (clients / staff / projects) shared by every form.
 export default function useLookups() {
@@ -33,7 +33,7 @@ export default function useLookups() {
     ...lookups,
     loading,
     clientOptions: toOptions(lookups.clients),
-    leaderOptions: toOptions(lookups.teamLeaders),
+    leaderOptions: toOptions(lookups.operationsManagers),
     employeeOptions: toOptions(lookups.employees),
     staffOptions: toOptions(lookups.staff),
     projectOptions: lookups.projects.map((p) => ({

@@ -53,7 +53,7 @@ export default function EmployeePerformance() {
         </div>
       ),
     },
-    { key: "teamLeader", header: "Team leader" },
+    { key: "operationsManager", header: "Operations Manager" },
     { key: "department", header: "Department", render: (row) => row.department || "—" },
     {
       key: "tasks",

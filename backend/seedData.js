@@ -1,4 +1,4 @@
-// Replaces the demo dataset with a small, real one: 2 clients, 2 team leaders
+// Replaces the demo dataset with a small, real one: 2 clients, 2 operations managers
 // and 2 employees, plus the projects and work that hang off them.
 //
 // Everything an admin owns (people, projects, tasks, issues, files, roles,
@@ -161,7 +161,7 @@ const ROLES = [
     permissions: {
       dashboard: ["view"],
       clients: ["view", "create", "edit", "delete"],
-      team_leaders: ["view", "create", "edit", "delete"],
+      operations_managers: ["view", "create", "edit", "delete"],
       employees: ["view", "create", "edit", "delete"],
       projects: ["view", "create", "edit", "delete"],
       tasks: ["view", "create", "edit", "delete"],
@@ -175,8 +175,8 @@ const ROLES = [
     },
   },
   {
-    name: "Team Leader",
-    key: "team_leader",
+    name: "Operations Manager",
+    key: "operations_manager",
     description: "Runs projects, assigns work and signs it off.",
     permissions: {
       dashboard: ["view"],
@@ -282,10 +282,10 @@ const run = async () => {
 
   const leaders = [];
   for (const leader of LEADERS) {
-    const { item } = await asAdmin("POST", "/admin/team-leaders", leader);
+    const { item } = await asAdmin("POST", "/admin/operations-managers", leader);
     leaders.push(item);
   }
-  console.log(`   ${leaders.length} team leaders`);
+  console.log(`   ${leaders.length} operations managers`);
 
   const employees = [];
   for (const { leader, ...employee } of EMPLOYEES) {
@@ -306,7 +306,7 @@ const run = async () => {
       description:
         "Phase 1 of a 42-unit residential township: layout approvals, foundation and structural work up to plinth level.",
       client: clients[0]._id,
-      teamLeader: leaders[0]._id,
+      operationsManager: leaders[0]._id,
       members: [employees[0]._id, employees[1]._id],
       status: "in_progress",
       priority: "high",
@@ -321,7 +321,7 @@ const run = async () => {
       description:
         "Ground-plus-four commercial block: concept design, municipal approvals and BOQ before execution starts.",
       client: clients[1]._id,
-      teamLeader: leaders[1]._id,
+      operationsManager: leaders[1]._id,
       members: [employees[1]._id, employees[0]._id],
       status: "planning",
       priority: "medium",
@@ -546,8 +546,8 @@ const run = async () => {
 
   await say("client", clients[0]._id, "Good morning Rajesh — plinth work starts Monday.");
   await say("client", clients[1]._id, "Priya, the approval set goes in this week.");
-  await say("team_leader", leaders[0]._id, "Arjun, please close the steel delivery issue by Friday.");
-  await say("team_leader", leaders[1]._id, "Meera, keep the setback revision on top of the list.");
+  await say("operations_manager", leaders[0]._id, "Arjun, please close the steel delivery issue by Friday.");
+  await say("operations_manager", leaders[1]._id, "Meera, keep the setback revision on top of the list.");
   await say("employee_admin", employees[0]._id, "Sahil, share the plinth photos with the report.");
   await say("employee_admin", employees[1]._id, "Divya, the client approved option B.");
   await say("project", projects[0]._id, "Site meeting at 11am on Thursday.");
@@ -556,7 +556,7 @@ const run = async () => {
 
   /* --------------------------------------------- work each role does itself */
 
-  // Team leaders: reply to the admin and message their own team member
+  // Operations Managers: reply to the admin and message their own team member
   for (const [i, leader] of leaders.entries()) {
     const token = await login("/leader/login", leader.email, passwordOf(LEADERS[i]));
     await call(token, "POST", `/leader/chat/admin/${leader._id}`, {
@@ -575,7 +575,7 @@ const run = async () => {
           : "Priya, sharing the revised layout for your review shortly.",
     });
   }
-  console.log("   team leader chat messages");
+  console.log("   operations manager chat messages");
 
   // Employees: reply to their leader and log the last few days of work
   const workLogs = [
@@ -587,7 +587,7 @@ const run = async () => {
   for (const [i, employee] of employees.entries()) {
     const token = await login("/employee/login", employee.email, passwordOf(EMPLOYEES[i]));
 
-    await call(token, "POST", `/employee/chat/team_leader/${employee._id}`, {
+    await call(token, "POST", `/employee/chat/operations_manager/${employee._id}`, {
       text:
         i === 0
           ? "Will do — I'll send the checked drawing by evening."
@@ -621,7 +621,7 @@ const run = async () => {
           ? "Thanks — please share the photos once the pour is done."
           : "Great. Can we review the facade options on a call?",
     });
-    await call(token, "POST", `/client/chat/team_leader/${client._id}`, {
+    await call(token, "POST", `/client/chat/operations_manager/${client._id}`, {
       text: i === 0 ? "Appreciate the update, Arjun." : "Looking forward to the revised layout.",
     });
 
@@ -653,7 +653,7 @@ const run = async () => {
 
   const counts = await Promise.all([
     Client.countDocuments(),
-    User.countDocuments({ role: "team_leader" }),
+    User.countDocuments({ role: "operations_manager" }),
     User.countDocuments({ role: "employee" }),
     Project.countDocuments(),
     Task.countDocuments(),
@@ -674,7 +674,7 @@ const run = async () => {
   ] = counts;
 
   console.log("\n✅ Saved to MongoDB");
-  console.log(`   clients ${clientCount} · team leaders ${leaderCount} · employees ${employeeCount}`);
+  console.log(`   clients ${clientCount} · operations managers ${leaderCount} · employees ${employeeCount}`);
   console.log(`   projects ${projectCount} · tasks ${taskCount} · issues ${issueCount} · files ${fileCount}`);
   console.log(`   attendance ${attendanceCount} · work logs ${workLogCount}`);
   console.log(`   meetings ${meetingCount} · feedback ${feedbackCount}`);
@@ -685,7 +685,7 @@ const run = async () => {
     console.log(`   ${role.padEnd(12)} ${email.padEnd(34)} ${password}`);
 
   row("Admin", ADMIN_EMAIL, ADMIN_PASSWORD);
-  LEADERS.forEach((l) => row("Team leader", l.email, passwordOf(l)));
+  LEADERS.forEach((l) => row("Operations Manager", l.email, passwordOf(l)));
   EMPLOYEES.forEach((e) => row("Employee", e.email, passwordOf(e)));
   CLIENTS.forEach((c) => row("Client", c.email, passwordOf(c)));
 

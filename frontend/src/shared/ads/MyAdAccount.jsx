@@ -105,7 +105,7 @@ export default function MyAdAccount({ api, base, homePath }) {
         My ad accounts
       </Link>
 
-      <div className="mb-5">
+      <div className="mb-4">
         <h1 className="text-xl font-semibold text-slate-900">{account.name}</h1>
         <p className="mt-1 text-sm text-slate-500">
           {account.client?.name}

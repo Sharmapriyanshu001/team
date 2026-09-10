@@ -6,7 +6,9 @@ import Meeting from "../../models/Meeting.js";
 import Feedback from "../../models/Feedback.js";
 import Notification from "../../models/Notification.js";
 import User, { ADMIN_ROLES } from "../../models/User.js";
+import ChangeRequest from "../../models/ChangeRequest.js";
 import { getScope } from "../../middleware/clientAuth.js";
+import { estimateCompletion } from "../../utils/projectEstimate.js";
 import { newMeetLink } from "../../utils/meetLink.js";
 import { logActivity } from "../../utils/activity.js";
 import { notifyUsers } from "../../utils/notify.js";
@@ -42,7 +44,7 @@ export const listProjects = async (req, res) => {
 
     const [projects, total] = await Promise.all([
       Project.find(query)
-        .populate("teamLeader", "name email designation phone")
+        .populate("operationsManager", "name email designation phone")
         .sort({ endDate: 1 })
         .skip((page - 1) * limit)
         .limit(limit),
@@ -65,8 +67,20 @@ export const listProjects = async (req, res) => {
 
     const items = projects.map((project) => {
       const stats = byProject[String(project._id)] || { total: 0, completed: 0 };
+
+      /**
+       * Everything except the money.
+       *
+       * `budget` used to ride out on the spread, which put the value of the
+       * contract on the client's own screen — where it is at best redundant
+       * and at worst the wrong figure, since what a project is worth to the
+       * company and what this client was invoiced are not the same number.
+       * Money is the administrator's, and lives behind the payments route.
+       */
+      const { budget, ...safe } = project.toObject();
+
       return {
-        ...project.toObject(),
+        ...safe,
         tasks: stats.total,
         tasksCompleted: stats.completed,
       };
@@ -84,9 +98,9 @@ export const getProgress = async (req, res) => {
   try {
     const { projectIds } = await getScope(req);
 
-    const [projects, taskRows, issueRows] = await Promise.all([
+    const [projects, taskRows, issueRows, changeRows] = await Promise.all([
       Project.find({ _id: { $in: projectIds } })
-        .populate("teamLeader", "name designation")
+        .populate("operationsManager", "name designation")
         .sort({ endDate: 1 }),
       Task.aggregate([
         { $match: { project: { $in: projectIds } } },
@@ -107,10 +121,24 @@ export const getProgress = async (req, res) => {
         },
         { $group: { _id: "$project", count: { $sum: 1 } } },
       ]),
+      /** Changes this client asked for that nobody has closed yet. */
+      ChangeRequest.aggregate([
+        {
+          $match: {
+            project: { $in: projectIds },
+            status: { $in: ["open", "in_progress"] },
+          },
+        },
+        { $group: { _id: "$project", count: { $sum: 1 } } },
+      ]),
     ]);
 
     const tasksByProject = taskRows.reduce((acc, r) => ({ ...acc, [String(r._id)]: r }), {});
     const issuesByProject = issueRows.reduce((acc, r) => ({ ...acc, [String(r._id)]: r.count }), {});
+    const changesByProject = changeRows.reduce(
+      (acc, r) => ({ ...acc, [String(r._id)]: r.count }),
+      {}
+    );
 
     const today = new Date();
 
@@ -119,6 +147,15 @@ export const getProgress = async (req, res) => {
       const end = project.endDate ? new Date(project.endDate) : null;
       const daysLeft = end ? Math.ceil((end - today) / 86400000) : null;
 
+      /**
+       * When it will actually be done, worked out from the tasks rather than
+       * from the date somebody wrote down at the start. Comes back null with a
+       * reason when there is not enough finished work to project from — see
+       * utils/projectEstimate.js for why a blank beats a confident guess.
+       */
+      const estimate = estimateCompletion(project, stats, today);
+
+      /** No budget. Money is the administrator's — see listProjects above. */
       return {
         id: project._id,
         name: project.name,
@@ -127,17 +164,22 @@ export const getProgress = async (req, res) => {
         status: project.status,
         priority: project.priority,
         progress: project.progress,
-        budget: project.budget,
         startDate: project.startDate,
         endDate: project.endDate,
         daysLeft,
         overdue: daysLeft !== null && daysLeft < 0 && project.status !== "completed",
-        teamLeader: project.teamLeader,
+        operationsManager: project.operationsManager,
         teamSize: project.members?.length || 0,
         tasks: stats.total,
         tasksCompleted: stats.completed,
-        taskProgress: stats.total ? Math.round((stats.completed / stats.total) * 100) : 0,
+        tasksRemaining: estimate.tasksRemaining,
+        taskProgress: estimate.taskProgress,
+        estimatedDate: estimate.estimatedDate,
+        daysNeeded: estimate.daysNeeded,
+        estimateBasis: estimate.basis,
+        behindPlan: estimate.behindPlan,
         openIssues: issuesByProject[String(project._id)] || 0,
+        openRequests: changesByProject[String(project._id)] || 0,
       };
     });
 
@@ -363,7 +405,7 @@ export const requestMeeting = async (req, res) => {
 
     // Whoever leads the project, plus the admins, should see the request
     const leaderId = project
-      ? (await Project.findById(project).select("teamLeader"))?.teamLeader
+      ? (await Project.findById(project).select("operationsManager"))?.operationsManager
       : null;
 
     notifyUsers([...(await adminIds()), leaderId], {

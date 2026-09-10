@@ -75,9 +75,9 @@ const codeProjectSchema = new mongoose.Schema(
 
     /* -------------------------------------------------------- who works on it */
 
-    teamLeaders: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    operationsManagers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     employees: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    // Which team leader handed the workspace to each of them, and when
+    // Which operations manager handed the workspace to each of them, and when
     employeeAssignments: { type: [assignmentSchema], default: [] },
 
     // What assigned staff may do. The admin is never restricted by these.
@@ -115,7 +115,7 @@ const codeProjectSchema = new mongoose.Schema(
      * it, and accessFor() refuses non-admins outright, so nobody keeps working
      * in a workspace that has been deleted out from under them.
      *
-     * This is also what lets an employee or a team leader delete a project at
+     * This is also what lets an employee or an operations manager delete a project at
      * all: their delete is this and only this, and the bin it lands in is a
      * screen they cannot open.
      */
@@ -139,7 +139,7 @@ const codeProjectSchema = new mongoose.Schema(
 // The three questions every list screen asks
 codeProjectSchema.index({ createdAt: -1 });
 codeProjectSchema.index({ deletedAt: 1, createdAt: -1 });
-codeProjectSchema.index({ teamLeaders: 1, createdAt: -1 });
+codeProjectSchema.index({ operationsManagers: 1, createdAt: -1 });
 codeProjectSchema.index({ employees: 1, createdAt: -1 });
 
 const CodeProject = mongoose.model("CodeProject", codeProjectSchema);

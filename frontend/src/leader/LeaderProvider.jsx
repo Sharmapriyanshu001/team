@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import leaderApi from "./leaderApi";
+import useLiveNotifications from "../shared/hooks/useLiveNotifications";
 import { readStoredUser } from "../shared/createApi";
 import { LeaderContext } from "./leaderContext";
 
@@ -43,6 +44,12 @@ export default function LeaderProvider({ children }) {
   useEffect(() => {
     refreshUnread();
   }, [refreshUnread]);
+
+  /**
+   * A notification pushed to this account updates the badge at once, so
+   * nobody has to reload a page to find out something happened to them.
+   */
+  useLiveNotifications("/leader", refreshUnread);
 
   /* ----------------------------------------------- the "new work" red dot */
 

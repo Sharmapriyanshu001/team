@@ -120,7 +120,7 @@ export default function Issues() {
     <div>
       <PageHeader
         title="Issues"
-        subtitle="Anything blocking work on your projects — raised issues go to your team leader"
+        subtitle="Anything blocking work on your projects — raised issues go to your operations manager"
       >
         <Button onClick={openNew}>
           <Plus size={15} />
@@ -169,7 +169,7 @@ export default function Issues() {
           total={crud.total}
           onPageChange={crud.setPage}
           emptyTitle="No issues"
-          emptyMessage="Report a blocker so your team leader can act on it."
+          emptyMessage="Report a blocker so your operations manager can act on it."
         />
       </Card>
 
@@ -178,7 +178,7 @@ export default function Issues() {
         title={editing === "new" ? "Report issue" : "Update issue"}
         subtitle={
           editing === "new"
-            ? "This goes straight to your team leader"
+            ? "This goes straight to your operations manager"
             : "You can update the details — closing it is your leader's call"
         }
         onClose={() => setEditing(null)}
@@ -226,7 +226,7 @@ export default function Issues() {
           </Field>
 
           {editing !== "new" && (
-            <Field label="Status" hint="Only your team leader can close an issue">
+            <Field label="Status" hint="Only your operations manager can close an issue">
               <Select
                 name="status"
                 value={form.status}

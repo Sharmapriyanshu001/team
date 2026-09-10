@@ -8,7 +8,10 @@ import { notifyUser } from "../../utils/notify.js";
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const POPULATE = [
-  { path: "project", select: "name code status teamLeader" },
+  { path: "project", select: "name code status operationsManager" },
+  // Department work carries a team instead of a project, and the row has to
+  // say which — otherwise it arrives looking like a task with nothing behind it
+  { path: "team", select: "name kind" },
   { path: "assignedBy", select: "name designation" },
 ];
 
@@ -20,7 +23,7 @@ const dayStart = (value) => {
   return d;
 };
 
-// An employee may move their own work forward, but only a team leader can
+// An employee may move their own work forward, but only an operations manager can
 // declare it finished — "completed" is set by the review flow.
 const ALLOWED_STATUS = ["pending", "in_progress", "review"];
 
@@ -115,7 +118,7 @@ export const getTask = async (req, res) => {
       task.project
         ? Project.findById(task.project._id)
             .populate("client", "name company")
-            .populate("teamLeader", "name email designation")
+            .populate("operationsManager", "name email designation")
         : null,
       Task.find({
         project: task.project?._id,
@@ -139,16 +142,51 @@ export const updateTaskStatus = async (req, res) => {
     const task = await Task.findOne({ _id: req.params.id, assignedTo: req.employee._id });
     if (!task) return res.status(404).json({ message: "Task not found" });
 
-    const { status, note } = req.body;
+    const { status, note, progress } = req.body;
 
-    if (!ALLOWED_STATUS.includes(status)) {
+    /**
+     * Progress on its own is a legitimate update.
+     *
+     * "I got another day into this" is the commonest thing anybody has to say
+     * about a task, and it moves no status — the work was in progress
+     * yesterday and is in progress now. Requiring a status with it would mean
+     * either re-sending the one it already has, or not reporting at all, and
+     * the second is what actually happens.
+     */
+    const movingStatus = status !== undefined;
+    const movingProgress = progress !== undefined;
+
+    if (!movingStatus && !movingProgress) {
+      return res.status(400).json({ message: "Nothing to update" });
+    }
+
+    if (movingStatus && !ALLOWED_STATUS.includes(status)) {
       return res.status(400).json({
-        message: "You can move a task to pending, in progress or review — only your team leader can complete it",
+        message: "You can move a task to pending, in progress or review — only your operations manager can complete it",
       });
     }
 
     const wasStatus = task.status;
-    task.status = status;
+    const wasProgress = task.progress;
+
+    if (movingStatus) task.status = status;
+
+    if (movingProgress) {
+      const next = Math.min(100, Math.max(0, Math.round(Number(progress) || 0)));
+      task.progress = next;
+
+      /**
+       * Reporting work done on an untouched task starts it.
+       *
+       * Otherwise a task sits at "pending, 40%", which is a state no screen
+       * can render honestly and no report can count. Only from pending, and
+       * only upward — nothing here ever pulls a task back out of review.
+       */
+      if (!movingStatus && next > 0 && task.status === "pending") {
+        task.status = "in_progress";
+      }
+    }
+
     if (note !== undefined) task.reviewNote = note;
     // Acting on a task is the clearest possible sign it has been seen
     task.seenByAssignee = true;
@@ -158,18 +196,21 @@ export const updateTaskStatus = async (req, res) => {
       action: "updated",
       entity: "Task",
       entityId: task._id,
-      message: `${req.employee.name} moved "${task.title}" to ${status.replace(/_/g, " ")}`,
+      message:
+        task.status !== wasStatus
+          ? `${req.employee.name} moved "${task.title}" to ${task.status.replace(/_/g, " ")}`
+          : `${req.employee.name} put "${task.title}" at ${task.progress}% (was ${wasProgress}%)`,
     });
 
     // Submitting for review is the one transition the leader must see
-    if (status === "review" && wasStatus !== "review") {
-      const project = await Project.findById(task.project).select("name teamLeader");
-      if (project?.teamLeader) {
-        notifyUser(project.teamLeader, {
+    if (task.status === "review" && wasStatus !== "review") {
+      const project = await Project.findById(task.project).select("name operationsManager");
+      if (project?.operationsManager) {
+        notifyUser(project.operationsManager, {
           type: "review",
           title: "Work submitted for review",
           message: `${req.employee.name} finished "${task.title}"`,
-          link: "/team-leader/daily-review",
+          link: "/operation-manager/daily-review",
         });
       }
     }
@@ -272,13 +313,13 @@ export const saveDailyWork = async (req, res) => {
       message: `${req.employee.name} logged ${hoursValue}h for ${day.toDateString()}`,
     });
 
-    // Blockers are worth interrupting the team leader for
+    // Blockers are worth interrupting the operations manager for
     if (log.blockers && req.employee.reportsTo) {
       notifyUser(req.employee.reportsTo, {
         type: "task",
         title: `${req.employee.name} reported a blocker`,
         message: log.blockers.slice(0, 120),
-        link: "/team-leader/daily-review",
+        link: "/operation-manager/daily-review",
       });
     }
 
@@ -295,7 +336,7 @@ export const saveDailyWork = async (req, res) => {
  *
  * The end-of-day submission: every task the employee was given for the day is
  * marked done or not done in one go. "Done" means submitted for review — only
- * the team leader closes a task — and "not done" carries the reason forward.
+ * the operations manager closes a task — and "not done" carries the reason forward.
  * The day's work log is written from the same submission.
  */
 export const submitDailyWork = async (req, res) => {
@@ -384,7 +425,7 @@ export const submitDailyWork = async (req, res) => {
         message: `${done.length} done, ${pending.length} still open${
           log.blockers ? ` · blocker: ${log.blockers.slice(0, 80)}` : ""
         }`,
-        link: "/team-leader/daily-review",
+        link: "/operation-manager/daily-review",
       });
     }
 

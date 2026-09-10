@@ -55,7 +55,7 @@ export const getDashboard = async (req, res) => {
     const [
       clients,
       activeClients,
-      teamLeaders,
+      operationsManagers,
       employees,
       projects,
       activeProjects,
@@ -78,7 +78,7 @@ export const getDashboard = async (req, res) => {
     ] = await Promise.all([
       Client.countDocuments(),
       Client.countDocuments({ status: "active" }),
-      User.countDocuments({ role: "team_leader" }),
+      User.countDocuments({ role: "operations_manager" }),
       User.countDocuments({ role: "employee" }),
       Project.countDocuments(),
       Project.countDocuments({ status: "in_progress" }),
@@ -129,7 +129,7 @@ export const getDashboard = async (req, res) => {
 
       Project.find()
         .populate("client", "name company")
-        .populate("teamLeader", "name")
+        .populate("operationsManager", "name")
         .sort({ createdAt: -1 })
         .limit(5),
       Task.find()
@@ -172,7 +172,7 @@ export const getDashboard = async (req, res) => {
       stats: {
         clients,
         activeClients,
-        teamLeaders,
+        operationsManagers,
         employees,
         projects,
         activeProjects,

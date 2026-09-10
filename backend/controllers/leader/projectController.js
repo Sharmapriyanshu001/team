@@ -10,7 +10,7 @@ const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // GET /api/leader/projects?view=active|completed&search=&page=
 export const listProjects = async (req, res) => {
   try {
-    const query = { teamLeader: req.leader._id };
+    const query = { operationsManager: req.leader._id };
 
     if (req.query.view === "active") {
       query.status = { $in: ["planning", "in_progress", "on_hold"] };
@@ -55,11 +55,11 @@ export const getProject = async (req, res) => {
   try {
     const project = await Project.findOne({
       _id: req.params.id,
-      teamLeader: req.leader._id,
+      operationsManager: req.leader._id,
     })
       .populate("client", "name company email phone address")
       .populate("members", "name email designation department")
-      .populate("teamLeader", "name email");
+      .populate("operationsManager", "name email");
 
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
@@ -105,7 +105,7 @@ export const updateProgress = async (req, res) => {
   try {
     const project = await Project.findOne({
       _id: req.params.id,
-      teamLeader: req.leader._id,
+      operationsManager: req.leader._id,
     });
 
     if (!project) {
@@ -144,7 +144,7 @@ export const updateProgress = async (req, res) => {
     const item = await Project.findById(project._id)
       .populate("client", "name company email phone address")
       .populate("members", "name email designation department")
-      .populate("teamLeader", "name email");
+      .populate("operationsManager", "name email");
 
     return res.status(200).json({ message: "Project updated", item });
   } catch (err) {

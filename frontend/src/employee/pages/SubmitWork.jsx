@@ -24,7 +24,7 @@ const dedupe = (tasks) =>
 /**
  * End-of-day submission: every task the employee was given for the day is
  * marked done or not done in one pass, with a reason for whatever is left.
- * Done means "sent to the team leader for review" — only they close a task.
+ * Done means "sent to the operations manager for review" — only they close a task.
  */
 export default function SubmitWork() {
   const [date, setDate] = useState(todayInput());
@@ -124,7 +124,7 @@ export default function SubmitWork() {
     <div>
       <PageHeader
         title="Submit Today's Work"
-        subtitle="Mark each task done or not done, then send it to your team leader"
+        subtitle="Mark each task done or not done, then send it to your operations manager"
       >
         <Input
           type="date"
@@ -222,7 +222,7 @@ export default function SubmitWork() {
 
           {/* ------------------------------------------------ the submission */}
           <Card className="h-fit">
-            <CardHeader title="Wrap up the day" subtitle="This goes to your team leader" />
+            <CardHeader title="Wrap up the day" subtitle="This goes to your operations manager" />
 
             <div className="space-y-4 p-5">
               <div className="grid grid-cols-2 gap-3">
@@ -271,7 +271,7 @@ export default function SubmitWork() {
 
               <p className="flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2 text-[11px] text-blue-700">
                 <CircleAlert size={13} className="mt-0.5 shrink-0" />
-                Tasks you mark done go to your team leader for review — they close them.
+                Tasks you mark done go to your operations manager for review — they close them.
               </p>
             </div>
 

@@ -136,7 +136,7 @@ export default function RolesPermissions() {
           <EmptyState
             icon={ShieldCheck}
             title="No roles defined"
-            message="Create roles to describe what team leaders, employees and other users can access."
+            message="Create roles to describe what operations managers, employees and other users can access."
           />
         </Card>
       ) : (

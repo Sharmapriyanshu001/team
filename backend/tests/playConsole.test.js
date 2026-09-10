@@ -12,7 +12,7 @@ let employee;
 before(async () => {
   ({ api, stop } = await startHarness({ port: 5901 }));
   admin = await signIn(api, { role: "admin", name: "Play Admin" });
-  leader = await signIn(api, { role: "team_leader", name: "Lead Dev" });
+  leader = await signIn(api, { role: "operations_manager", name: "Lead Dev" });
   employee = await signIn(api, { role: "employee", name: "App Dev" });
 });
 
@@ -290,7 +290,7 @@ describe("what staff can see", () => {
   before(async () => {
     const c = await api.post(
       "/api/admin/play/consoles",
-      { name: "Team Console", teamLeaders: [leader.user._id] },
+      { name: "Team Console", operationsManagers: [leader.user._id] },
       T()
     );
     consoleId = c.body.item._id;
@@ -327,7 +327,7 @@ describe("what staff can see", () => {
     assert.equal(res.status, 403);
   });
 
-  test("a team leader sees every app on the console they lead", async () => {
+  test("an operations manager sees every app on the console they lead", async () => {
     const res = await api.get("/api/leader/play/my-work", { token: leader.token });
     assert.equal(res.status, 200);
     assert.equal(res.body.consoles.length, 1);

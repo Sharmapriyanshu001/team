@@ -1,6 +1,18 @@
 import mongoose from "mongoose";
 
 export const NOTIFICATION_TYPES = [
+  /**
+   * Anything that is simply news for one person rather than an event on a
+   * project, a task or a review: a leave decision, a hiring update, an account
+   * change.
+   *
+   * It was missing, and seven call sites across HR, hiring and the employee
+   * panel were already sending it. A mongoose enum rejects on write, and
+   * notify.js deliberately swallows failures so that a notification can never
+   * break the request that caused it — so every one of those was thrown away
+   * silently. Nobody had ever been told their leave was approved.
+   */
+  "general",
   "project",
   "task",
   "review",

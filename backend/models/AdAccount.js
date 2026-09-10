@@ -131,7 +131,7 @@ const adAccountSchema = new mongoose.Schema(
 
     notes: { type: String, trim: true, default: "" },
 
-    teamLeaders: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    operationsManagers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     employees: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     assignments: { type: [assignmentSchema], default: [] },
 
@@ -153,7 +153,7 @@ adAccountSchema.methods.recoveredTo = function recoveredTo() {
 
 adAccountSchema.index({ client: 1, platform: 1 });
 adAccountSchema.index({ status: 1, platform: 1 });
-adAccountSchema.index({ teamLeaders: 1 });
+adAccountSchema.index({ operationsManagers: 1 });
 adAccountSchema.index({ employees: 1 });
 
 const AdAccount = mongoose.model("AdAccount", adAccountSchema);

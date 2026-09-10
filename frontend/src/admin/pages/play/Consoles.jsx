@@ -30,7 +30,7 @@ const BLANK = {
   registeredOn: "",
   appLimit: "",
   notes: "",
-  teamLeaders: [],
+  operationsManagers: [],
   employees: [],
 };
 
@@ -95,7 +95,7 @@ export default function Consoles() {
             client: row.client?._id || "",
             registeredOn: row.registeredOn ? row.registeredOn.slice(0, 10) : "",
             appLimit: row.appLimit || "",
-            teamLeaders: (row.teamLeaders || []).map((u) => u._id || u),
+            operationsManagers: (row.operationsManagers || []).map((u) => u._id || u),
             employees: (row.employees || []).map((u) => u._id || u),
           }
         : BLANK
@@ -160,7 +160,7 @@ export default function Consoles() {
       key: "team",
       header: "Team",
       render: (row) => {
-        const names = [...(row.teamLeaders || []), ...(row.employees || [])].map((u) => u.name);
+        const names = [...(row.operationsManagers || []), ...(row.employees || [])].map((u) => u.name);
         if (!names.length) return <span className="text-slate-400">Nobody yet</span>;
         return (
           <span className="text-slate-700">
@@ -360,13 +360,13 @@ export default function Consoles() {
             />
           </Field>
 
-          <Field label="Team leaders" hint="They see every app on this console" className="sm:col-span-2">
+          <Field label="Operations Managers" hint="They see every app on this console" className="sm:col-span-2">
             <MultiSelect
               options={lookups.leaderOptions}
-              value={form.teamLeaders}
-              onChange={(value) => setForm((f) => ({ ...f, teamLeaders: value }))}
-              placeholder="Search team leaders…"
-              emptyLabel="No team leaders on record"
+              value={form.operationsManagers}
+              onChange={(value) => setForm((f) => ({ ...f, operationsManagers: value }))}
+              placeholder="Search operations managers…"
+              emptyLabel="No operations managers on record"
             />
           </Field>
 

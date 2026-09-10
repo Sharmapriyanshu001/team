@@ -32,7 +32,7 @@ export default function useLookups() {
     /**
      * The employee's own open tasks, for naming what a code submission was
      * done for. Completed ones are already left out by the server — there is
-     * nothing to submit against work the team leader has signed off.
+     * nothing to submit against work the operations manager has signed off.
      */
     taskOptions: lookups.tasks.map((t) => ({
       value: t._id,

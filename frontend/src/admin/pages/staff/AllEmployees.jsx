@@ -7,7 +7,7 @@ export default function AllEmployees() {
       title="All Employees"
       subtitle="Everyone working on site and in the office"
       addPath="/admin/employees/add"
-      showTeamLeader
+      showOperationsManager
     />
   );
 }

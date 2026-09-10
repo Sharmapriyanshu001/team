@@ -14,11 +14,11 @@ import employeeApi from "../employeeApi";
 import { Alert, Badge, Button, Card, EmptyState, Loader, PageHeader } from "../../shared/components/ui";
 
 /**
- * "My Work" — everything a team leader has handed to this employee.
+ * "My Work" — everything an operations manager has handed to this employee.
  *
  * The pieces were already on three separate screens: the project under
  * Projects, the task under Tasks, the code under Code. What was missing was the
- * sentence that ties them together — *your team leader gave you this, on this
+ * sentence that ties them together — *your operations manager gave you this, on this
  * date, and here is the code to do it with*. Nobody should have to check three
  * screens to notice they were given something.
  *
@@ -109,7 +109,7 @@ export default function MyWork() {
         title="My Work"
         subtitle={
           loading
-            ? "Everything your team leader has given you"
+            ? "Everything your operations manager has given you"
             : `${counts.openTasks} open task${counts.openTasks === 1 ? "" : "s"} · ${
                 counts.workspaces
               } workspace${counts.workspaces === 1 ? "" : "s"}`
@@ -127,7 +127,7 @@ export default function MyWork() {
           <EmptyState
             icon={Inbox}
             title="Nothing assigned to you yet"
-            message="When your team leader puts you on a project or gives you a task, it shows up here with the code to do it."
+            message="When your operations manager puts you on a project or gives you a task, it shows up here with the code to do it."
           />
         </Card>
       ) : (
@@ -151,7 +151,7 @@ function ProjectGroup({ group, busyId, onOpenWorkspace, onDownload }) {
   const { project, tasks = [], codeProjects = [] } = group;
 
   return (
-    <Card className="p-4">
+    <Card className="px-4 py-3">
       {/* ---------------------------------------------------- the project */}
       <div className="flex flex-wrap items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
@@ -242,7 +242,7 @@ function ProjectGroup({ group, busyId, onOpenWorkspace, onDownload }) {
 
                 {!row.workspaceReady && (
                   <p className="mt-1.5 rounded bg-red-50 px-2 py-1 text-[11px] text-red-800">
-                    This did not extract properly — ask your team leader to send it again.
+                    This did not extract properly — ask your operations manager to send it again.
                   </p>
                 )}
 

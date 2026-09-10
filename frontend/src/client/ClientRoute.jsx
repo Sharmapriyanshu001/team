@@ -1,7 +1,7 @@
 import { Navigate } from "react-router-dom";
 
-// Guards the portal: no client token -> back to the client login.
+// Guards the client pages: no token -> back to the one login at "/".
 export default function ClientRoute({ children }) {
   const token = localStorage.getItem("clientToken");
-  return token ? children : <Navigate to="/client/login" replace />;
+  return token ? children : <Navigate to="/" replace />;
 }

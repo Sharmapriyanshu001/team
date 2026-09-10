@@ -3,6 +3,7 @@ import { ArrowLeft, Save } from "lucide-react";
 
 import { useRecordForm } from "../../hooks/crud";
 import LoginCredentials from "../../components/LoginCredentials";
+import PreviousProject from "./PreviousProject";
 import {
   Alert,
   Button,
@@ -27,11 +28,20 @@ const EMPTY = {
   notes: "",
   password: "",
   portalAccess: true,
+  // The earlier job this client is coming back about, if there is one
+  previousProject: "",
 };
 
-export default function AddClient() {
+/**
+ * Add a client, or edit one when the URL carries "?id=".
+ *
+ * `listPath` is where Cancel and a finished edit go back to — its own list by
+ * default, and the Team & Accounts panel when it is opened from there.
+ * `embedded` drops the PageHeader for the same reason the staff form does.
+ */
+export default function AddClient({ embedded = false, listPath = "/admin/clients" }) {
   const navigate = useNavigate();
-  const { form, change, submit, isEdit, loading, saving, error, success } =
+  const { form, change, setValue, submit, isEdit, loading, saving, error, success } =
     useRecordForm("clients", EMPTY);
 
   const handleSubmit = async (e) => {
@@ -41,25 +51,55 @@ export default function AddClient() {
     const payload = { ...form };
     if (!payload.password) delete payload.password;
 
+    /**
+     * The record comes back with previousProject populated, so the form may be
+     * holding the whole project rather than its id. Sending that back would
+     * fail to cast.
+     */
+    if (payload.previousProject && typeof payload.previousProject === "object") {
+      payload.previousProject = payload.previousProject._id;
+    }
+
     const ok = await submit(payload);
-    if (ok && isEdit) setTimeout(() => navigate("/admin/clients"), 700);
+    if (ok && isEdit) setTimeout(() => navigate(listPath), 700);
   };
 
   if (loading) return <Loader />;
 
   return (
     <div>
-      <PageHeader
-        title={isEdit ? "Edit Client" : "Add Client"}
-        subtitle={
-          isEdit ? "Update the client's details" : "Their mobile number becomes the portal password"
-        }
-      >
-        <Button variant="outline" onClick={() => navigate("/admin/clients")}>
-          <ArrowLeft size={15} />
-          Back
-        </Button>
-      </PageHeader>
+      {embedded ? (
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              {isEdit ? "Edit client" : "Add client"}
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {isEdit
+                ? "Update the client's details"
+                : "Their mobile number becomes the portal password"}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate(listPath)}>
+            <ArrowLeft size={15} />
+            Back to list
+          </Button>
+        </div>
+      ) : (
+        <PageHeader
+          title={isEdit ? "Edit Client" : "Add Client"}
+          subtitle={
+            isEdit
+              ? "Update the client's details"
+              : "Their mobile number becomes the portal password"
+          }
+        >
+          <Button variant="outline" onClick={() => navigate(listPath)}>
+            <ArrowLeft size={15} />
+            Back
+          </Button>
+        </PageHeader>
+      )}
 
       <form onSubmit={handleSubmit} className="max-w-3xl">
         <Card>
@@ -136,6 +176,13 @@ export default function AddClient() {
               </Field>
             </div>
 
+            {/* Answered once here; every project created for this client
+                afterwards inherits the link — see the projects beforeSave */}
+            <PreviousProject
+              value={form.previousProject?._id || form.previousProject || ""}
+              onChange={(id) => setValue("previousProject", id)}
+            />
+
             <LoginCredentials
               email={form.email}
               phone={form.phone}
@@ -160,7 +207,7 @@ export default function AddClient() {
           </div>
 
           <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
-            <Button type="button" variant="outline" onClick={() => navigate("/admin/clients")}>
+            <Button type="button" variant="outline" onClick={() => navigate(listPath)}>
               Cancel
             </Button>
             <Button type="submit" loading={saving}>

@@ -4,6 +4,13 @@ import { Loader, EmptyState } from "./ui";
 /**
  * columns: [{ key, header, render?, className?, width? }]
  * rows:    array of records (each needs a stable `_id` or `id`)
+ *
+ * `renderCard` is what one row looks like on a narrow screen. A table with
+ * seven columns on a phone is a table nobody scrolls sideways through, so a
+ * list that offers one renders cards below `md` and the table above it. The
+ * paging controls are shared by both, rather than drawn twice and left to
+ * drift. Lists that pass nothing keep the horizontally scrolling table they
+ * have always had.
  */
 export default function DataTable({
   columns,
@@ -16,6 +23,7 @@ export default function DataTable({
   total = 0,
   onPageChange,
   onRowClick,
+  renderCard,
 }) {
   if (loading) return <Loader />;
 
@@ -25,7 +33,7 @@ export default function DataTable({
 
   return (
     <div>
-      <div className="overflow-x-auto">
+      <div className={`overflow-x-auto ${renderCard ? "hidden md:block" : ""}`}>
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50/80">
@@ -33,7 +41,7 @@ export default function DataTable({
                 <th
                   key={col.key}
                   style={col.width ? { width: col.width } : undefined}
-                  className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap ${
+                  className={`px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap ${
                     col.className || ""
                   }`}
                 >
@@ -54,7 +62,7 @@ export default function DataTable({
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-4 py-3 align-middle text-slate-700 ${col.className || ""}`}
+                    className={`px-3 py-2.5 align-middle text-slate-700 ${col.className || ""}`}
                   >
                     {col.render ? col.render(row, index) : row[col.key] ?? "—"}
                   </td>
@@ -65,8 +73,22 @@ export default function DataTable({
         </table>
       </div>
 
+      {renderCard && (
+        <ul className="divide-y divide-slate-100 md:hidden">
+          {rows.map((row, index) => (
+            <li
+              key={row._id || row.id || index}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              className={`px-4 py-3 ${onRowClick ? "cursor-pointer active:bg-slate-50" : ""}`}
+            >
+              {renderCard(row, index)}
+            </li>
+          ))}
+        </ul>
+      )}
+
       {pages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
+        <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2.5 text-xs text-slate-500">
           <span>
             Page {page} of {pages} · {total} records
           </span>

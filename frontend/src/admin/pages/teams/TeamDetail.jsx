@@ -140,7 +140,7 @@ export default function TeamDetail() {
         All teams
       </Link>
 
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">{team.name}</h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -196,7 +196,7 @@ export default function TeamDetail() {
                   Nothing set for this month.
                 </p>
               ) : (
-                <div className="space-y-5">
+                <div className="space-y-4">
                   {data.targets.map((target) => (
                     <div key={target._id}>
                       <Progress target={target} />
@@ -271,7 +271,7 @@ export default function TeamDetail() {
                           {person.name}
                           {person.isLeader && (
                             <span className="ml-2 inline-block align-middle">
-                              <Badge value="team leader" />
+                              <Badge value="operations manager" />
                             </span>
                           )}
                         </p>

@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Mail, Phone, BarChart3, MessageSquare } from "lucide-react";
+import { Mail, Phone, BarChart3, MessageSquare, UserMinus, UserPlus } from "lucide-react";
 
+import leaderApi from "../../leaderApi";
 import { useCrud } from "../../hooks/crud";
+import AddMembers from "./AddMembers";
 import DataTable from "../../../shared/components/DataTable";
 import Toolbar from "../../../shared/components/Toolbar";
+import { ConfirmDialog } from "../../../shared/components/Modal";
 import { Alert, Badge, Button, Card, PageHeader, ProgressBar } from "../../../shared/components/ui";
 
 const initialsOf = (name = "") =>
@@ -16,6 +20,31 @@ const initialsOf = (name = "") =>
 
 export default function TeamMembers() {
   const crud = useCrud("team");
+
+  const [adding, setAdding] = useState(false);
+  const [releasing, setReleasing] = useState(null);
+  const [working, setWorking] = useState(false);
+  const [done, setDone] = useState("");
+
+  /**
+   * Letting somebody go back to the unassigned pool.
+   *
+   * Their tasks and projects are deliberately untouched — this is a change of
+   * reporting line, not a reason to strip a month of work off the board.
+   */
+  const release = async () => {
+    setWorking(true);
+    try {
+      const { data } = await leaderApi.delete(`/leader/team/members/${releasing._id}`);
+      setReleasing(null);
+      setDone(data.message);
+      crud.refresh();
+    } catch (err) {
+      crud.setError(err.response?.data?.message || "Could not remove them");
+    } finally {
+      setWorking(false);
+    }
+  };
 
   const columns = [
     {
@@ -69,13 +98,26 @@ export default function TeamMembers() {
       key: "actions",
       header: "",
       className: "text-right",
-      render: () => (
-        <Link to="/team-leader/chat/employees">
-          <Button size="sm" variant="outline">
-            <MessageSquare size={14} />
-            Chat
-          </Button>
-        </Link>
+      render: (row) => (
+        <div className="flex justify-end gap-1.5">
+          <Link to="/operation-manager/chat/employees">
+            <Button size="sm" variant="outline">
+              <MessageSquare size={14} />
+              Chat
+            </Button>
+          </Link>
+          {/* Back to the unassigned pool. Their work is left alone. */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setReleasing(row);
+            }}
+            title="Remove from your team"
+            className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+          >
+            <UserMinus size={15} />
+          </button>
+        </div>
       ),
     },
   ];
@@ -83,15 +125,21 @@ export default function TeamMembers() {
   return (
     <div>
       <PageHeader title="Team Members" subtitle={`${crud.total} people report to you`}>
-        <Link to="/team-leader/team/performance">
+        <Link to="/operation-manager/team/performance">
           <Button variant="outline">
             <BarChart3 size={15} />
             Performance
           </Button>
         </Link>
+        {/* Build your own team rather than waiting to be given one */}
+        <Button onClick={() => setAdding(true)}>
+          <UserPlus size={15} />
+          Add Members
+        </Button>
       </PageHeader>
 
       <Alert>{crud.error}</Alert>
+      <Alert tone="success">{done}</Alert>
 
       <Card>
         <Toolbar
@@ -113,9 +161,28 @@ export default function TeamMembers() {
           rows={crud.rows}
           loading={crud.loading}
           emptyTitle="No team members yet"
-          emptyMessage="The admin assigns employees to you from the Employees section."
+          emptyMessage="Press Add Members to pick from the employees who are not on anybody's team."
         />
       </Card>
+
+      <AddMembers
+        open={adding}
+        onClose={() => setAdding(false)}
+        onAdded={(message) => {
+          setDone(message);
+          crud.refresh();
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(releasing)}
+        title="Remove from your team"
+        message={`${releasing?.name} will go back to the unassigned list and can be picked up by another leader. Their tasks and projects are not affected.`}
+        confirmLabel="Remove"
+        loading={working}
+        onConfirm={release}
+        onClose={() => setReleasing(null)}
+      />
     </div>
   );
 }

@@ -36,7 +36,7 @@ const fileDocSchema = new mongoose.Schema(
     // The one person responsible for this file. Left empty for documents that
     // are simply filed against a project.
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    assignedRole: { type: String, enum: ["team_leader", "employee"] },
+    assignedRole: { type: String, enum: ["operations_manager", "employee"] },
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     assignedAt: { type: Date },
     assignmentNote: { type: String, trim: true, default: "" },

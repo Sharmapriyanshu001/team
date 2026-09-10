@@ -82,20 +82,20 @@ const canJoin = async (who, scope, roomId) => {
 
   if (who.kind === "admin") {
     // The admin owns every thread in the app
-    return ["client", "team_leader", "employee_admin", "project"].includes(scope);
+    return ["client", "operations_manager", "employee_admin", "project"].includes(scope);
   }
 
   const flags = await chatFlags();
 
-  if (who.kind === "team_leader") {
-    if (scope === "team_leader") return sameId(roomId, who.id);
+  if (who.kind === "operations_manager") {
+    if (scope === "operations_manager") return sameId(roomId, who.id);
     if (scope === "employee") {
       const team = await User.find({ reportsTo: who.id }).distinct("_id");
       return team.map(String).includes(String(roomId));
     }
     if (scope === "client_leader") {
       if (!flags.leaderClientChat) return false;
-      return (await clientIdsFor({ teamLeader: who.id })).includes(String(roomId));
+      return (await clientIdsFor({ operationsManager: who.id })).includes(String(roomId));
     }
     return false;
   }
@@ -197,4 +197,22 @@ export const emitMessage = (scope, roomId, message) => {
 export const emitChatPermissions = (flags) => {
   if (!io) return;
   io.emit("chat:permissions", flags);
+};
+
+/**
+ * A notification has just been written for somebody. Push it down the personal
+ * channel every socket joins on connect, so the bell and the inbox update
+ * themselves instead of waiting for the next poll.
+ *
+ * Deliberately the whole row rather than a nudge to refetch: the inbox can
+ * prepend it directly, and a panel that only wants the count can read
+ * `unreadDelta`. Either way nobody has to press refresh to find out that
+ * their leave was approved.
+ */
+export const emitNotification = (userId, notification) => {
+  if (!io || !userId) return;
+  io.to(`user:${userId}`).emit("notification:new", {
+    notification,
+    unreadDelta: 1,
+  });
 };

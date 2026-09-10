@@ -1,5 +1,26 @@
-import { useCallback, useEffect, useState } from "react";
-import { Copy, Eye, History, KeyRound, Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Clock,
+  Copy,
+  Database,
+  Eye,
+  Globe,
+  HardDrive,
+  History,
+  KeyRound,
+  Lock,
+  Mail,
+  Pencil,
+  Plus,
+  Search,
+  Server,
+  Share2,
+  ShieldAlert,
+  ShieldCheck,
+  Store,
+  Trash2,
+  Users,
+} from "lucide-react";
 
 import useLookups from "../../hooks/useLookups";
 import adminApi from "../../adminApi";
@@ -9,6 +30,7 @@ import {
   Badge,
   Button,
   Card,
+  EmptyState,
   Field,
   Input,
   Loader,
@@ -42,6 +64,66 @@ const when = (value) =>
         minute: "2-digit",
       })
     : "—";
+
+/**
+ * One glyph per kind of login, so a list of thirty is scannable by shape
+ * before it is read. A kind with no icon of its own falls back to the padlock.
+ */
+const TYPE_ICONS = {
+  play_console: Store,
+  hosting: Server,
+  cpanel: Server,
+  ftp: HardDrive,
+  domain: Globe,
+  database: Database,
+  wordpress: Globe,
+  social: Share2,
+  email: Mail,
+  api_key: KeyRound,
+  other: Lock,
+};
+
+/**
+ * How close an expiry is, said in words. Nothing is shown for a credential
+ * that never expires or expires far off — a chip on every row is a chip
+ * nobody sees, and the point of this one is that it is rare.
+ */
+const expiryOf = (value) => {
+  if (!value) return null;
+
+  const days = Math.ceil((new Date(value) - Date.now()) / 86400000);
+  if (days < 0) {
+    return { label: "Expired", classes: "bg-red-50 text-red-700 ring-red-200" };
+  }
+  if (days === 0) return { label: "Expires today", classes: "bg-red-50 text-red-700 ring-red-200" };
+  if (days <= 30) {
+    return {
+      label: `${days}d left`,
+      classes: "bg-sky-50 text-sky-700 ring-sky-200",
+    };
+  }
+  return null;
+};
+
+function VaultStat({ icon: Icon, label, value, tone = "slate" }) {
+  const tones = {
+    slate: "bg-slate-100 text-slate-500",
+    blue: "bg-blue-50 text-blue-600",
+    black: "bg-slate-900 text-white",
+    red: "bg-red-50 text-red-600",
+  };
+  return (
+    <Card className="flex items-center gap-3 px-4 py-3">
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${tones[tone]}`}>
+        <Icon size={16} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-lg font-semibold leading-tight tabular-nums text-slate-900">{value}</p>
+        <p className="truncate text-[11px] uppercase tracking-wide text-slate-400">{label}</p>
+      </div>
+    </Card>
+  );
+}
 
 /**
  * The credential vault.
@@ -144,6 +226,24 @@ export default function Vault() {
     }
   };
 
+  /**
+   * The four numbers worth knowing before reading the list.
+   *
+   * "Expiring" is the one that earns its place: a domain panel or an API key
+   * that lapses quietly is the failure this screen exists to prevent, and
+   * nobody goes looking for a date they never think about.
+   */
+  const stats = useMemo(() => {
+    const soon = new Date();
+    soon.setDate(soon.getDate() + 30);
+    return {
+      total: rows.length,
+      shared: rows.filter((r) => r.sharedWith?.length > 0).length,
+      expiring: rows.filter((r) => r.expiresAt && new Date(r.expiresAt) <= soon).length,
+      unopened: rows.filter((r) => !r.lastAccess).length,
+    };
+  }, [rows]);
+
   const showHistory = async (row) => {
     try {
       const { data } = await adminApi.get(`/admin/vault/${row._id}/access-log`);
@@ -170,40 +270,67 @@ export default function Vault() {
       </PageHeader>
 
       {vaultOff ? (
-        <Card>
-          <div className="flex items-start gap-3 p-6">
-            <ShieldAlert size={20} className="mt-0.5 shrink-0 text-amber-500" />
-            <div className="text-sm">
-              <p className="font-medium text-slate-900">The vault is switched off</p>
-              <p className="mt-1 text-slate-600">{error}</p>
-              <p className="mt-3 text-xs text-slate-500">
-                Generate a key and put it in <code className="font-mono">backend/.env</code> as{" "}
-                <code className="font-mono">VAULT_KEY</code>, then restart the server. Nothing is
-                ever stored unencrypted, so until then the vault simply refuses to work.
-              </p>
-              <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-900 px-3 py-2 text-[11px] text-slate-100">
-                node -e
-                &quot;console.log(require(&apos;crypto&apos;).randomBytes(32).toString(&apos;base64url&apos;))&quot;
-              </pre>
-              <p className="mt-3 text-xs text-amber-700">
-                Back that key up somewhere that is not this server. Lose it and every secret in the
-                vault is unrecoverable — by design.
-              </p>
+        <Card className="border-red-200">
+          <div className="flex items-start gap-3 border-b border-red-100 bg-red-50/60 px-5 py-4">
+            <ShieldAlert size={20} className="mt-0.5 shrink-0 text-red-600" />
+            <div>
+              <p className="text-sm font-semibold text-slate-900">The vault is switched off</p>
+              <p className="mt-0.5 text-sm text-slate-600">{error}</p>
             </div>
+          </div>
+
+          <div className="space-y-3 px-5 py-4 text-sm text-slate-600">
+            <p>
+              Generate a key, put it in{" "}
+              <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">
+                backend/.env
+              </code>{" "}
+              as{" "}
+              <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">VAULT_KEY</code>,
+              then restart the server. Nothing is ever stored unencrypted, so until then the vault
+              simply refuses to work.
+            </p>
+            <pre className="overflow-x-auto rounded-lg bg-slate-900 px-3 py-2.5 text-[11px] leading-relaxed text-slate-100">
+              node -e
+              &quot;console.log(require(&apos;crypto&apos;).randomBytes(32).toString(&apos;base64url&apos;))&quot;
+            </pre>
+            <p className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+              <ShieldAlert size={14} className="mt-px shrink-0" />
+              Back that key up somewhere that is not this server. Lose it and every secret in the
+              vault is unrecoverable — by design.
+            </p>
           </div>
         </Card>
       ) : (
         <>
           <Alert>{error}</Alert>
 
+          <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <VaultStat icon={KeyRound} label="Credentials" value={stats.total} />
+            <VaultStat icon={Users} label="Shared with staff" value={stats.shared} tone="blue" />
+            <VaultStat
+              icon={Clock}
+              label="Expiring in 30 days"
+              value={stats.expiring}
+              tone={stats.expiring ? "red" : "slate"}
+            />
+            <VaultStat icon={ShieldCheck} label="Never opened" value={stats.unopened} tone="black" />
+          </div>
+
           <Card>
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3">
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, username or URL"
-                className="min-w-[200px] flex-1"
-              />
+              <div className="relative min-w-[220px] flex-1">
+                <Search
+                  size={15}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name, username or URL"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                />
+              </div>
               <Select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
@@ -214,74 +341,101 @@ export default function Vault() {
             </div>
 
             {rows.length === 0 ? (
-              <div className="px-4 py-12 text-center">
-                <KeyRound size={28} className="mx-auto text-slate-300" />
-                <p className="mt-3 text-sm font-medium text-slate-700">Nothing in the vault yet</p>
-                <p className="mt-1 text-sm text-slate-400">
-                  Put the Play console, cPanel and hosting logins here instead of a spreadsheet.
-                </p>
-              </div>
+              <EmptyState
+                icon={KeyRound}
+                title={search || typeFilter ? "Nothing matches" : "Nothing in the vault yet"}
+                message={
+                  search || typeFilter
+                    ? "No credential matches that search. Try a different name or kind."
+                    : "Put the Play console, cPanel and hosting logins here instead of a spreadsheet — encrypted, and every look recorded."
+                }
+              />
             ) : (
-              <div className="divide-y divide-slate-100">
-                {rows.map((row) => (
-                  <div key={row._id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                    <div className="min-w-[12rem] flex-1">
-                      <p className="font-medium text-slate-900">{row.label}</p>
-                      <p className="text-xs text-slate-400">
-                        {row.username || "no username"}
-                        {row.client?.name && ` · ${row.client.name}`}
-                        {row.hint && ` · ${row.hint}`}
-                      </p>
-                    </div>
+              <ul className="divide-y divide-slate-100">
+                {rows.map((row) => {
+                  const TypeIcon = TYPE_ICONS[row.type] || Lock;
+                  const expiry = expiryOf(row.expiresAt);
 
-                    <Badge value={row.type} />
-
-                    {row.sharedWith?.length > 0 && (
-                      <span className="text-xs text-slate-500">
-                        shared with {row.sharedWith.length}
+                  return (
+                    <li
+                      key={row._id}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors hover:bg-slate-50"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                        <TypeIcon size={16} />
                       </span>
-                    )}
 
-                    <span className="text-xs text-slate-400">
-                      {row.lastAccess
-                        ? `last opened by ${row.lastAccess.userName || "someone"}`
-                        : "never opened"}
-                    </span>
+                      <div className="min-w-[12rem] flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-medium text-slate-900">{row.label}</p>
+                          <Badge value={row.type} />
+                          {row.status !== "active" && <Badge value={row.status} />}
+                          {expiry && (
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${expiry.classes}`}
+                            >
+                              <Clock size={10} />
+                              {expiry.label}
+                            </span>
+                          )}
+                        </div>
 
-                    <div className="ml-auto flex gap-1">
-                      <button
-                        onClick={() => reveal(row)}
-                        disabled={!row.hasSecret}
-                        title={row.hasSecret ? "Reveal the secret" : "Nothing stored"}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-40 disabled:hover:bg-transparent"
-                      >
-                        <Eye size={15} />
-                      </button>
-                      <button
-                        onClick={() => showHistory(row)}
-                        title="Who has looked"
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                      >
-                        <History size={15} />
-                      </button>
-                      <button
-                        onClick={() => open(row)}
-                        title="Edit"
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
-                      >
-                        <Pencil size={15} />
-                      </button>
-                      <button
-                        onClick={() => setTarget(row)}
-                        title="Delete"
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                        <p className="mt-0.5 truncate text-xs text-slate-400">
+                          {row.username || "no username"}
+                          {row.client?.company || row.client?.name
+                            ? ` · ${row.client.company || row.client.name}`
+                            : " · ours"}
+                          {row.hint && ` · ${row.hint}`}
+                        </p>
+                      </div>
+
+                      <div className="min-w-[10rem] text-xs text-slate-400">
+                        <p className="truncate">
+                          {row.lastAccess
+                            ? `Last opened by ${row.lastAccess.userName || "someone"}`
+                            : "Never opened"}
+                        </p>
+                        <p className="truncate text-slate-300">
+                          {row.lastAccess ? when(row.lastAccess.at) : "—"}
+                          {row.sharedWith?.length > 0 && ` · shared with ${row.sharedWith.length}`}
+                        </p>
+                      </div>
+
+                      <div className="ml-auto flex gap-1">
+                        <button
+                          onClick={() => reveal(row)}
+                          disabled={!row.hasSecret}
+                          title={row.hasSecret ? "Reveal the secret" : "Nothing stored"}
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-40 disabled:hover:bg-transparent"
+                        >
+                          <Eye size={15} />
+                        </button>
+                        <button
+                          onClick={() => showHistory(row)}
+                          title={`Who has looked${row.accessCount ? ` (${row.accessCount})` : ""}`}
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        >
+                          <History size={15} />
+                        </button>
+                        <button
+                          onClick={() => open(row)}
+                          title="Edit"
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => setTarget(row)}
+                          title="Delete"
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </Card>
         </>

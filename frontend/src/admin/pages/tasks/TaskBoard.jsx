@@ -103,7 +103,7 @@ export default function TaskBoard({ title, subtitle, baseFilters = {}, review = 
       // on the new project's team.
       const next = lookups.projects.find((p) => String(p._id) === String(value));
       const team = next
-        ? [next.teamLeader?._id, ...(next.members || []).map((m) => m._id)]
+        ? [next.operationsManager?._id, ...(next.members || []).map((m) => m._id)]
             .filter(Boolean)
             .map(String)
         : [];
@@ -155,15 +155,15 @@ export default function TaskBoard({ title, subtitle, baseFilters = {}, review = 
 
   /**
    * Work belongs to whoever is on the project, so the "Assign to" list follows
-   * the project picked above: its team leader first, then its members. Without
+   * the project picked above: its operations manager first, then its members. Without
    * a project there is nothing to narrow by, so the whole staff list stands.
    */
   const activeProject = lookups.projects.find((p) => String(p._id) === String(form.project));
 
   const projectTeam = activeProject
     ? [
-        ...(activeProject.teamLeader
-          ? [{ ...activeProject.teamLeader, role: "Team leader" }]
+        ...(activeProject.operationsManager
+          ? [{ ...activeProject.operationsManager, role: "Operations Manager" }]
           : []),
         ...(activeProject.members || []).map((m) => ({ ...m, role: m.designation || "Employee" })),
       ]
@@ -338,7 +338,7 @@ export default function TaskBoard({ title, subtitle, baseFilters = {}, review = 
             label="Project"
             hint={
               activeProject
-                ? `Led by ${activeProject.teamLeader?.name || "nobody yet"}`
+                ? `Led by ${activeProject.operationsManager?.name || "nobody yet"}`
                 : "Pick one to see only its team below"
             }
           >

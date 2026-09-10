@@ -142,7 +142,7 @@ export default function DailyWork() {
       {/* ------------------------------------------------------- counters */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
         {SECTIONS.map((section) => (
-          <Card key={section.key} className="p-4">
+          <Card key={section.key} className="px-4 py-3">
             <p className="text-xs font-medium text-slate-500">{section.label}</p>
             <p className="mt-1 text-xl font-bold text-slate-900">{data?.[section.key].length ?? 0}</p>
             <span
@@ -151,7 +151,7 @@ export default function DailyWork() {
             />
           </Card>
         ))}
-        <Card className="p-4">
+        <Card className="px-4 py-3">
           <p className="text-xs font-medium text-slate-500">Attendance</p>
           <p className="mt-1 text-lg font-bold text-slate-900">
             {data?.attendance ? prettify(data.attendance.status) : "Not marked"}
@@ -245,7 +245,7 @@ export default function DailyWork() {
         <Card className="h-fit">
           <CardHeader
             title="Today's work log"
-            subtitle="Your team leader reads this — blockers get flagged to them"
+            subtitle="Your operations manager reads this — blockers get flagged to them"
           />
           <form onSubmit={saveLog}>
             <div className="space-y-4 p-5">

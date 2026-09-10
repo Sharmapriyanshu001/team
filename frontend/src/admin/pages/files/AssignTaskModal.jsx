@@ -18,7 +18,7 @@ import {
 const PRIORITIES = ["low", "medium", "high"];
 
 const ROLES = [
-  { value: "team_leader", label: "Team Leaders" },
+  { value: "operations_manager", label: "Operations Managers" },
   { value: "employee", label: "Employees" },
 ];
 
@@ -48,7 +48,7 @@ const prettySize = (bytes) => {
 };
 
 /**
- * Hand one piece of work to any number of team leaders and employees at once,
+ * Hand one piece of work to any number of operations managers and employees at once,
  * with an optional ZIP travelling with it.
  *
  * The role buttons only filter the list — a tick survives switching sides, so
@@ -74,11 +74,11 @@ export default function AssignTaskModal({ open, onClose, onAssigned }) {
 
   // One list, both sides, each option remembering which side it came from
   const everyone = [
-    ...lookups.teamLeaders.map((person) => ({
+    ...lookups.operationsManagers.map((person) => ({
       value: person._id,
       label: person.name,
-      role: "team_leader",
-      group: "Team Leaders",
+      role: "operations_manager",
+      group: "Operations Managers",
     })),
     ...lookups.employees.map((person) => ({
       value: person._id,
@@ -132,7 +132,7 @@ export default function AssignTaskModal({ open, onClose, onAssigned }) {
     e?.preventDefault();
 
     if (!assignees.length) {
-      setError("Pick at least one team leader or employee");
+      setError("Pick at least one operations manager or employee");
       return;
     }
     if (!form.title.trim()) {
@@ -179,7 +179,7 @@ export default function AssignTaskModal({ open, onClose, onAssigned }) {
     <Modal
       open={open}
       title="Assign work"
-      subtitle="Give one task to any number of team leaders and employees"
+      subtitle="Give one task to any number of operations managers and employees"
       onClose={close}
       footer={
         <>
@@ -192,7 +192,7 @@ export default function AssignTaskModal({ open, onClose, onAssigned }) {
         </>
       }
     >
-      <form onSubmit={handleSave} className="space-y-5">
+      <form onSubmit={handleSave} className="space-y-4">
         <Alert>{error}</Alert>
 
         {/* who it goes to */}

@@ -125,7 +125,19 @@ export const signIn = async (api, { role = "admin", email, name = "Test User", p
     status: "active",
   });
 
-  const panel = { admin: "admin", super_admin: "admin", team_leader: "leader", employee: "employee" }[role];
+  // Which door this role signs in through. HR and Sales have panels of their
+  // own, so their accounts cannot authenticate against /api/admin at all.
+  const panel = {
+    admin: "admin",
+    super_admin: "admin",
+    manager: "leader",
+    operations_manager: "leader",
+    employee: "employee",
+    hr: "hr",
+    hr_manager: "hr",
+    sales: "sales",
+    sales_exec: "sales",
+  }[role];
   const { body } = await api.post(`/api/${panel}/login`, { email: address, password });
 
   if (!body?.token) throw new Error(`could not sign in as ${role}: ${JSON.stringify(body)}`);

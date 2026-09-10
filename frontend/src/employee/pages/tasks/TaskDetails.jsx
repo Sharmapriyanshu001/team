@@ -41,6 +41,16 @@ export default function TaskDetails() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  /**
+   * The slider's own value, held apart from the task's.
+   *
+   * Dragging a slider that writes straight through would fire a request per
+   * pixel, so this holds what the person has dragged to and the Save button
+   * commits it. Re-seeded from the task whenever a different one is opened —
+   * otherwise the slider would still be showing the last task's figure.
+   */
+  const [progress, setProgress] = useState(0);
+
   // Task picker — everything assigned to this employee
   useEffect(() => {
     let active = true;
@@ -75,6 +85,7 @@ export default function TaskDetails() {
       .then(({ data: res }) => {
         if (!active) return;
         setData(res);
+        setProgress(res.task?.progress ?? 0);
         setError("");
       })
       .catch((err) => {
@@ -94,6 +105,34 @@ export default function TaskDetails() {
     setParams({ id });
   };
 
+  /**
+   * How far along, as this person reports it.
+   *
+   * Sent on its own, without a status. "I got another day into this" is the
+   * commonest thing anybody has to say about a task and it moves no status —
+   * the work was in progress yesterday and is in progress now. The server
+   * starts a pending task on the first report, so pressing Save at 20% does
+   * the obvious thing without a second click on Start working.
+   */
+  const saveProgress = async () => {
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const { data: res } = await employeeApi.put(`/employee/tasks/${selectedId}`, {
+        progress: Number(progress) || 0,
+      });
+      setSuccess(`Progress saved at ${res.item?.progress ?? progress}%`);
+      setTasks((prev) => prev.map((t) => (t._id === selectedId ? { ...t, ...res.item } : t)));
+      setReloadKey((key) => key + 1);
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not save your progress");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const move = async (status) => {
     setBusy(true);
     setError("");
@@ -103,7 +142,7 @@ export default function TaskDetails() {
       const { data: res } = await employeeApi.put(`/employee/tasks/${selectedId}`, { status });
       setSuccess(
         status === "review"
-          ? "Submitted to your team leader for review"
+          ? "Submitted to your operations manager for review"
           : `Moved to ${prettify(status).toLowerCase()}`
       );
       setTasks((prev) => prev.map((t) => (t._id === selectedId ? { ...t, ...res.item } : t)));
@@ -125,7 +164,7 @@ export default function TaskDetails() {
           <EmptyState
             icon={ListChecks}
             title="No tasks assigned"
-            message="Once your team leader assigns you work it will show up here."
+            message="Once your operations manager assigns you work it will show up here."
           />
         </Card>
       </div>
@@ -169,7 +208,7 @@ export default function TaskDetails() {
                 action={<Badge value={task.status} />}
               />
 
-              <div className="space-y-5 p-5">
+              <div className="space-y-4 p-5">
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   {[
                     ["Priority", prettify(task.priority)],
@@ -202,7 +241,7 @@ export default function TaskDetails() {
                 {(task.reviewNote || task.reviewRating > 0) && (
                   <div className="rounded-lg bg-slate-50 p-4">
                     <p className="mb-2 text-[11px] uppercase tracking-wide text-slate-400">
-                      Team leader's review
+                      Operations Manager's review
                     </p>
                     <div className="flex items-center gap-0.5">
                       {[1, 2, 3, 4, 5].map((star) => (
@@ -230,9 +269,57 @@ export default function TaskDetails() {
               <Card>
                 <CardHeader
                   title="Move this along"
-                  subtitle="Only your team leader can mark it completed"
+                  subtitle="Only your operations manager can mark it completed"
                 />
-                <div className="space-y-2 p-5">
+                <div className="space-y-3 p-5">
+                  {/**
+                   * Progress first, because it is the thing somebody opens
+                   * this card to do most days. The status buttons below are
+                   * for the two moments the job actually changes hands.
+                   */}
+                  {task.status !== "completed" && (
+                    <div className="rounded-lg border border-slate-200 p-3">
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span>How far along</span>
+                        <span className="text-sm font-semibold text-slate-800">{progress}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={progress}
+                        onChange={(e) => setProgress(Number(e.target.value))}
+                        className="mt-2 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600"
+                      />
+                      <Button
+                        className="mt-2 w-full"
+                        variant="outline"
+                        loading={busy}
+                        disabled={Number(progress) === Number(task.progress ?? 0)}
+                        onClick={saveProgress}
+                      >
+                        Save progress
+                      </Button>
+                    </div>
+                  )}
+
+                  {task.bonus > 0 && (
+                    <p
+                      className={`rounded-lg px-3 py-2 text-xs ${
+                        task.bonusAwardedAt
+                          ? "bg-green-50 text-green-700"
+                          : "bg-amber-50 text-amber-700"
+                      }`}
+                    >
+                      {task.bonusAwardedAt
+                        ? `Bonus of ₹${Number(task.bonus).toLocaleString("en-IN")} earned.`
+                        : `₹${Number(task.bonus).toLocaleString(
+                            "en-IN"
+                          )} on this one once your operations manager approves it.`}
+                    </p>
+                  )}
+
                   {task.status === "pending" && (
                     <Button className="w-full" loading={busy} onClick={() => move("in_progress")}>
                       <Play size={15} />
@@ -261,7 +348,7 @@ export default function TaskDetails() {
                   {task.status === "review" && (
                     <>
                       <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                        Submitted — waiting for your team leader to sign it off.
+                        Submitted — waiting for your operations manager to sign it off.
                       </p>
                       <Button
                         className="w-full"
@@ -301,9 +388,9 @@ export default function TaskDetails() {
                         </dd>
                       </div>
                       <div className="flex justify-between gap-2">
-                        <dt className="text-slate-500">Team leader</dt>
+                        <dt className="text-slate-500">Operations Manager</dt>
                         <dd className="truncate font-medium text-slate-800">
-                          {project.teamLeader?.name || "—"}
+                          {project.operationsManager?.name || "—"}
                         </dd>
                       </div>
                       <div className="flex justify-between gap-2">

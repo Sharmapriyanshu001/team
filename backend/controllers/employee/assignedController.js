@@ -6,12 +6,12 @@ import { accessFor } from "../codeProjectController.js";
 import { assignedByFor } from "../../utils/projectTeam.js";
 
 /**
- * "My Work" — everything a team leader has handed to this employee, in one
+ * "My Work" — everything an operations manager has handed to this employee, in one
  * place and in the order it was given.
  *
  * The pieces already existed on separate screens: the project under Projects,
  * the task under Tasks, the code under Code. What was missing was the sentence
- * that ties them together — *your team leader gave you this, on this date, and
+ * that ties them together — *your operations manager gave you this, on this date, and
  * here is the code to do it with*. An employee should not have to check three
  * screens to notice they were given something.
  *
@@ -29,7 +29,7 @@ export const getAssignedWork = async (req, res) => {
     const [projects, tasks, codeProjects] = await Promise.all([
       Project.find({ _id: { $in: projectIds } })
         .populate("client", "name company")
-        .populate("teamLeader", "name email designation")
+        .populate("operationsManager", "name email designation")
         .sort({ updatedAt: -1 }),
 
       /**
@@ -47,7 +47,7 @@ export const getAssignedWork = async (req, res) => {
       // The workspaces they were given, live ones only
       CodeProject.find({ employees: req.employee._id, deletedAt: null })
         .populate("project", "name code")
-        .populate("teamLeaders", "name role")
+        .populate("operationsManagers", "name role")
         .sort({ updatedAt: -1 }),
     ]);
 
@@ -71,7 +71,7 @@ export const getAssignedWork = async (req, res) => {
       const from = assignedByFor(
         project.memberAssignments,
         req.employee._id,
-        project.teamLeader?.name
+        project.operationsManager?.name
       );
 
       const row = project.toObject();

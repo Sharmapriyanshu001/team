@@ -85,7 +85,7 @@ export default function Profile() {
   const { askSignOut, signOutDialog } = useSignOut({
     tokenKey: "leaderToken",
     userKey: "leader",
-    loginPath: "/team-leader/login",
+    loginPath: "/",
     panel: "the team panel",
   });
 
@@ -109,7 +109,7 @@ export default function Profile() {
             <p className="mt-4 text-lg font-semibold text-slate-900">{leader?.name}</p>
             <p className="text-sm text-slate-500">{leader?.email}</p>
             <div className="mt-3">
-              <Badge tone="blue">Team Leader</Badge>
+              <Badge tone="blue">Operations Manager</Badge>
             </div>
 
             <dl className="mt-6 w-full space-y-2 border-t border-slate-100 pt-4 text-left text-xs">

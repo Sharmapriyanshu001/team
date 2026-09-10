@@ -32,6 +32,11 @@ import {
 } from "../controllers/leader/assignController.js";
 import { listTeam, teamPerformance } from "../controllers/leader/teamController.js";
 import {
+  addMembers,
+  availableMembers,
+  removeMember,
+} from "../controllers/leader/teamMembership.js";
+import {
   listTasks,
   getTask,
   createTask,
@@ -113,6 +118,27 @@ import {
   getReports,
   getLookups,
 } from "../controllers/leader/workspaceController.js";
+import {
+  departmentPerformance,
+  myReports,
+  orgChart,
+  reportContext,
+  reportDetail,
+  reportInbox,
+  respondToReport,
+  reviewReport,
+  submitReport,
+  withdrawReport,
+} from "../controllers/reportChainController.js";
+import {
+  assignChangeRequest,
+  countNewChangeRequests,
+  getChangeRequest,
+  listChangeRequests,
+  updateChangeRequest,
+} from "../controllers/changeRequestController.js";
+import { bonusByProject, listBonuses } from "../controllers/bonusController.js";
+import { myLeavePolicies } from "../controllers/employee/leaveController.js";
 
 const router = express.Router();
 
@@ -123,7 +149,7 @@ router.post("/login", loginBurstLimiter, loginLimiter, leaderLogin);
 // sits behind the same door as everything else rather than beside the login.
 router.post("/logout", leaderAuth, leaderLogout);
 
-// Everything below this line needs a valid team leader token
+// Everything below this line needs a valid operations manager token
 router.use(leaderAuth);
 
 router.get("/me", leaderProfile);
@@ -154,6 +180,21 @@ router.put("/projects/:id/progress", updateProgress);
 /* ------------------------------------------------------------------ team */
 
 router.get("/team/performance", teamPerformance);
+
+/**
+ * A leader building their own team, rather than waiting for an admin to
+ * assign them people.
+ *
+ * Only ever writes `reportsTo`, only for an employee nobody is leading, and
+ * only lets go of somebody already reporting to this leader — see
+ * controllers/leader/teamMembership.js, where those three rules live.
+ *
+ * Declared above "/team" so neither path is swallowed by it.
+ */
+router.get("/team/available", availableMembers);
+router.post("/team/members", addMembers);
+router.delete("/team/members/:id", removeMember);
+
 router.get("/team", listTeam);
 
 /* ----------------------------------------------------------------- tasks */
@@ -168,6 +209,40 @@ router.get("/tasks/new-count", countNewTasks);
 router.put("/tasks/seen", markTasksSeen);
 router.get("/tasks/:id", getTask);
 router.put("/tasks/:id", updateTask);
+
+/* ------------------------------------------------------ leave policies */
+
+/**
+ * What kinds of leave the company grants, read-only.
+ *
+ * The same handler the employee panel uses — it reads the active policies and
+ * takes nothing from the request, so there is one answer to "how many casual
+ * days do we get" rather than one per panel. An operations manager approving
+ * their team's leave had no way to see the rules they were approving against.
+ *
+ * Read-only here on purpose: writing policy is HR's, and there is no POST,
+ * PUT or DELETE mounted on this router.
+ */
+router.get("/leave-policies", myLeavePolicies);
+
+/* ------------------------------------------------------------- bonuses */
+
+/** What the work this leader handed out is worth, and what has been earned. */
+router.get("/bonuses/projects", bonusByProject);
+router.get("/bonuses", listBonuses);
+
+/* ------------------------------------------------------- change requests */
+
+/**
+ * Client changes on the projects this leader runs: who is carrying each one,
+ * how far along it is, and the decision to decline one.
+ */
+router.get("/change-requests/new-count", countNewChangeRequests);
+router.get("/change-requests", listChangeRequests);
+router.get("/change-requests/:id", getChangeRequest);
+router.put("/change-requests/:id", updateChangeRequest);
+router.put("/change-requests/:id/assign", assignChangeRequest);
+
 router.delete("/tasks/:id", removeTask);
 
 /* ------------------------------------------------------------------ chat */
@@ -211,7 +286,7 @@ router.get("/code/:id", getSubmission);
  * business having two implementations.
  *
  * The handler holds the limits: it must be a project this leader runs, they
- * are the only team leader on it, and the per-project permissions take their
+ * are the only operations manager on it, and the per-project permissions take their
  * defaults rather than anything sent here.
  */
 router.post("/code-projects", uploadZip, createCodeProject);
@@ -245,7 +320,7 @@ router.get("/code-projects/:id/tree", getMyCodeProjectTree);
 router.get("/code-projects/:id", getMyCodeProject);
 
 // Sharing a workspace this leader already holds with their own team. They
-// cannot add a team leader, cannot touch the per-project permissions, and
+// cannot add an operations manager, cannot touch the per-project permissions, and
 // cannot reach a code project the admin did not assign to them.
 router.put("/code-projects/:id/employees", shareCodeProjectWithTeam);
 
@@ -318,8 +393,6 @@ router.put("/notifications/:id/read", markNotificationRead);
 router.get("/reports", getReports);
 router.get("/lookups", getLookups);
 
-export default router;
-
 /* ------------------------------------------------------------ google play */
 
 /**
@@ -361,3 +434,27 @@ router.post("/ads/campaigns/:campaignId/days", staffRecordDay);
 
 /** The teams this account is on, and the targets it carries this month. */
 router.get("/team/mine", myTeam);
+
+/* ------------------------------------------------------- the reporting chain */
+
+/**
+ * Team Member → Manager → HR → Admin, and the answer back down.
+ *
+ * The same handlers serve every panel — the direction of travel is worked out
+ * from who is asking, not from which door they came through. See
+ * controllers/reportChainController.js.
+ *
+ * Named sub-paths ahead of "/:id" so none of them is read as a report id.
+ */
+router.get("/reports/context", reportContext);
+router.get("/reports/mine", myReports);
+router.get("/reports/inbox", reportInbox);
+router.get("/reports/departments", departmentPerformance);
+router.get("/reports/org", orgChart);
+router.post("/reports", submitReport);
+router.put("/reports/:id/review", reviewReport);
+router.put("/reports/:id/respond", respondToReport);
+router.get("/reports/:id", reportDetail);
+router.delete("/reports/:id", withdrawReport);
+
+export default router;

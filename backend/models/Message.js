@@ -7,7 +7,7 @@ import mongoose from "mongoose";
  *   client          admin    <-> client      room = client id
  *   client_leader   leader   <-> client      room = client id
  *   client_employee employee <-> client      room = client id
- *   team_leader     admin    <-> leader      room = leader id
+ *   operations_manager     admin    <-> leader      room = leader id
  *   employee        leader   <-> employee    room = employee id
  *   employee_admin  admin    <-> employee    room = employee id
  *   project         everyone on a project    room = project id
@@ -16,7 +16,7 @@ export const CHAT_SCOPES = [
   "client",
   "client_leader",
   "client_employee",
-  "team_leader",
+  "operations_manager",
   "employee",
   "employee_admin",
   "project",

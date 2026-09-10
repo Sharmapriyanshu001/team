@@ -31,7 +31,7 @@ import {
  *
  * Two things live here because they are the same decision seen from two ends:
  * what people have asked for, and what has been deleted but not yet destroyed.
- * A team leader asking for a project to go, the admin agreeing, and the files
+ * An operations manager asking for a project to go, the admin agreeing, and the files
  * finally being removed are three separate acts, and this is where the last
  * two happen.
  */
@@ -65,7 +65,7 @@ const formatWhen = (value) => {
 const ROLE_LABELS = {
   super_admin: "Super Admin",
   admin: "Admin",
-  team_leader: "Team Leader",
+  operations_manager: "Operations Manager",
   employee: "Employee",
 };
 
@@ -249,7 +249,7 @@ export default function CodeRequests() {
                 title={status === "pending" ? "Nothing waiting on you" : "Nothing here"}
                 message={
                   status === "pending"
-                    ? "When a team leader or employee asks to change or delete a code project, it lands here."
+                    ? "When an operations manager or employee asks to change or delete a code project, it lands here."
                     : "No requests match that filter."
                 }
               />
@@ -345,7 +345,7 @@ function RequestCard({ request, busy, onDecide }) {
   const changes = request.changes || {};
 
   return (
-    <Card className="p-4">
+    <Card className="px-4 py-3">
       <div className="flex flex-wrap items-start gap-3">
         <span
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
@@ -476,7 +476,7 @@ function DecisionModal({ request, decision, loading, onConfirm, onClose }) {
  * situation from an admin tidying up their own upload.
  */
 function BinCard({ project, busy, onRestore, onPurge }) {
-  const team = [...(project.teamLeaders || []), ...(project.employees || [])];
+  const team = [...(project.operationsManagers || []), ...(project.employees || [])];
   const deletedBy = project.deletedBy;
   const role = project.deletedByRole || deletedBy?.role;
 

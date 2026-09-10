@@ -214,7 +214,7 @@ export default function WorkHistory() {
               ["Tasks closed", data.summary.tasksCompleted],
               ["Avg rating", data.summary.avgRating ? `${data.summary.avgRating} / 5` : "—"],
             ].map(([label, value]) => (
-              <Card key={label} className="p-4">
+              <Card key={label} className="px-4 py-3">
                 <p className="text-xs font-medium text-slate-500">{label}</p>
                 <p className="mt-1 text-xl font-bold text-slate-900">{value}</p>
               </Card>

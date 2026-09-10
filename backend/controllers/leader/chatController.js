@@ -10,7 +10,7 @@ import { emitMessage } from "../../utils/realtime.js";
 
 /**
  * The leader's three tabs map onto the shared Message collection:
- *   admin    -> scope "team_leader", room = the leader's own id (their thread
+ *   admin    -> scope "operations_manager", room = the leader's own id (their thread
  *               with the admin, the same one the admin panel opens)
  *   employee -> scope "employee",      room = one of their team members
  *   client   -> scope "client_leader", room = a client on one of their projects
@@ -25,7 +25,7 @@ const resolveRooms = async (req, tab) => {
   if (tab === "admin") {
     const admin = await User.findOne({ role: { $in: ADMIN_ROLES } }).select("name email");
     return {
-      scope: "team_leader",
+      scope: "operations_manager",
       rooms: [
         {
           id: req.leader._id,
@@ -187,14 +187,14 @@ export const sendMessage = async (req, res) => {
         type: "chat",
         title: `Message from ${req.leader.name}`,
         message: text.slice(0, 120),
-        link: "/employee/chat/team-leader",
+        link: "/employee/chat/operation-manager",
       });
     } else if (req.params.tab === "client") {
       notifyClient(req.params.roomId, {
         type: "chat",
         title: `Message from ${req.leader.name}`,
         message: text.slice(0, 120),
-        link: "/client/chat/team-leader",
+        link: "/client/chat/operation-manager",
       });
     } else if (req.params.tab === "admin") {
       /**
@@ -208,7 +208,7 @@ export const sendMessage = async (req, res) => {
         type: "chat",
         title: `Message from ${req.leader.name}`,
         message: text.slice(0, 120),
-        link: "/admin/chat/team-leaders",
+        link: "/admin/chat/operations-managers",
       });
     }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import employeeApi from "./employeeApi";
+import useLiveNotifications from "../shared/hooks/useLiveNotifications";
 import { readStoredUser } from "../shared/createApi";
 import { EmployeeContext } from "./employeeContext";
 
@@ -41,6 +42,12 @@ export default function EmployeeProvider({ children }) {
   useEffect(() => {
     refreshUnread();
   }, [refreshUnread]);
+
+  /**
+   * A notification pushed to this account updates the badge at once, so
+   * nobody has to reload a page to find out something happened to them.
+   */
+  useLiveNotifications("/employee", refreshUnread);
 
   /* ----------------------------------------------- the "new work" red dot */
 

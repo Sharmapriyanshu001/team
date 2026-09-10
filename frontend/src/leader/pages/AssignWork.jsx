@@ -34,7 +34,7 @@ import {
 } from "../../shared/components/ui";
 
 /**
- * Assign Work — the middle of admin → team leader → employee.
+ * Assign Work — the middle of admin → operations manager → employee.
  *
  * The admin hands a project to a leader. This is where the leader hands it on:
  * puts their own people on it, gives out tasks and follows them, and lets the
@@ -53,7 +53,7 @@ import {
  * server does that on the same call, and says so in its answer.
  *
  * The boundary is the project, which must be one the admin gave them, and the
- * role: a team leader, an admin or a disabled account is never in these lists
+ * role: an operations manager, an admin or a disabled account is never in these lists
  * and would be refused if one were sent anyway.
  *
  * All of that is decided by the server. The lists below are a convenience for
@@ -366,7 +366,7 @@ export default function AssignWork() {
         title="Assign Work"
         subtitle="Projects the admin gave you — put your team on them, hand out tasks, and share the workspace"
       >
-        <Button variant="outline" onClick={() => navigate("/team-leader/code-reviews")}>
+        <Button variant="outline" onClick={() => navigate("/operation-manager/code-reviews")}>
           <ClipboardCheck size={15} />
           Code Reviews
         </Button>
@@ -409,7 +409,7 @@ export default function AssignWork() {
               onDeleteTask={(task) => setDeleteTask({ projectId: project._id, task })}
               onShareWorkspace={(codeProject) => setWorkspaceFor({ project, codeProject })}
               onOpenWorkspace={(codeProject) =>
-                navigate(`/team-leader/code-projects/${codeProject._id}/workspace`)
+                navigate(`/operation-manager/code-projects/${codeProject._id}/workspace`)
               }
             />
           ))}
@@ -535,7 +535,7 @@ function ProjectCard({
 
 
   return (
-    <Card className="p-4">
+    <Card className="px-4 py-3">
       <div className="flex flex-wrap items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
           <FolderKanban size={18} />
@@ -834,7 +834,7 @@ function PeopleModal({
 }) {
   /**
    * Seeded from the current list, but narrowed to people this box can actually
-   * offer. Anyone on the project who is not an active employee — a team leader
+   * offer. Anyone on the project who is not an active employee — an operations manager
    * the admin put there — is not in `team`, so ticking them back is not
    * something this box can do, and sending their id would be refused. The
    * server leaves them on the project regardless; they are simply not part of

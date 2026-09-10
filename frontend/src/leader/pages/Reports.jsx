@@ -175,7 +175,7 @@ export default function Reports() {
               { label: "Completion", value: `${data.summary.completionRate}%` },
               { label: "Team size", value: data.summary.teamSize },
             ].map((tile) => (
-              <Card key={tile.label} className="p-4">
+              <Card key={tile.label} className="px-4 py-3">
                 <p className="text-xs font-medium text-slate-500">{tile.label}</p>
                 <p className="mt-1 text-xl font-bold text-slate-900">{tile.value}</p>
               </Card>

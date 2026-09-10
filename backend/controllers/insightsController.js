@@ -129,7 +129,7 @@ const projectsInsight = async () => {
   const [projects, byStatus, byPriority, taskRows, newPerMonth] = await Promise.all([
     Project.find()
       .populate("client", "name company")
-      .populate("teamLeader", "name designation")
+      .populate("operationsManager", "name designation")
       .sort({ endDate: 1 }),
     Project.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
     Project.aggregate([{ $group: { _id: "$priority", count: { $sum: 1 } } }]),
@@ -165,7 +165,7 @@ const projectsInsight = async () => {
       name: project.name,
       code: project.code,
       client: project.client?.company || project.client?.name || "—",
-      leader: project.teamLeader?.name || "Unassigned",
+      leader: project.operationsManager?.name || "Unassigned",
       status: project.status,
       priority: project.priority,
       progress: project.progress,
@@ -205,7 +205,7 @@ const teamInsight = async () => {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
   const [staff, taskRows, attendanceRows, projectRows] = await Promise.all([
-    User.find({ role: { $in: ["team_leader", "employee"] } })
+    User.find({ role: { $in: ["operations_manager", "employee"] } })
       .select("-password")
       .populate("reportsTo", "name")
       .sort({ role: 1, name: 1 }),
@@ -230,8 +230,8 @@ const teamInsight = async () => {
       },
     ]),
     Project.aggregate([
-      { $match: { teamLeader: { $ne: null } } },
-      { $group: { _id: "$teamLeader", projects: { $sum: 1 } } },
+      { $match: { operationsManager: { $ne: null } } },
+      { $group: { _id: "$operationsManager", projects: { $sum: 1 } } },
     ]),
   ]);
 
@@ -271,10 +271,10 @@ const teamInsight = async () => {
 
   return {
     title: "Team Members",
-    subtitle: "Team leaders and employees, with their workload and attendance",
+    subtitle: "Operations Managers and employees, with their workload and attendance",
     summary: [
       { label: "Total people", value: rows.length },
-      { label: "Team leaders", value: rows.filter((r) => r.role === "team_leader").length },
+      { label: "Operations Managers", value: rows.filter((r) => r.role === "operations_manager").length },
       { label: "Employees", value: rows.filter((r) => r.role === "employee").length },
       { label: "Active", value: rows.filter((r) => r.status === "active").length },
     ],
@@ -292,7 +292,7 @@ const budgetInsight = async () => {
   const [projects, byStatus, perMonth] = await Promise.all([
     Project.find()
       .populate("client", "name company")
-      .populate("teamLeader", "name")
+      .populate("operationsManager", "name")
       .sort({ budget: -1 }),
     Project.aggregate([
       { $group: { _id: "$status", budget: { $sum: "$budget" }, count: { $sum: 1 } } },
@@ -346,7 +346,7 @@ const budgetInsight = async () => {
       name: project.name,
       code: project.code,
       client: project.client?.company || project.client?.name || "—",
-      leader: project.teamLeader?.name || "Unassigned",
+      leader: project.operationsManager?.name || "Unassigned",
       status: project.status,
       progress: project.progress,
       budget: project.budget,
