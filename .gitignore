@@ -25,3 +25,6 @@ Thumbs.db
 # Caches
 .cache/
 *.tsbuildinfo
+
+# Local dev mongod data (backend/_devMongo.mjs)
+backend/.mongo-data/
