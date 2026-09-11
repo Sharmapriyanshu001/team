@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+import { uploadedFileSchema } from "./uploadedFile.js";
+
 /**
  * "super_admin" sits above "admin" rather than replacing it: every existing
  * account keeps the role it already has, and everywhere the app asks "is this
@@ -160,22 +162,6 @@ export const DEPARTMENT_LABELS = {
   sales_exec: "Sales Executive",
   operations: "Operations",
 };
-
-/**
- * One uploaded paper. The bytes live under uploads/ and are never served
- * statically — `storedName` is only meaningful to a route that has already
- * decided the caller may see it.
- */
-const uploadedFileSchema = new mongoose.Schema(
-  {
-    storedName: { type: String, trim: true, required: true },
-    originalName: { type: String, trim: true, default: "" },
-    mimeType: { type: String, trim: true, default: "" },
-    size: { type: Number, default: 0 },
-    uploadedAt: { type: Date, default: Date.now },
-  },
-  { _id: false }
-);
 
 /**
  * Proof of identity: the two cards everybody is asked for, each photographed

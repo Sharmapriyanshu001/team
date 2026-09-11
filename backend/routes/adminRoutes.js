@@ -40,6 +40,7 @@ import Role, {
 import { adminLogin, adminLogout, adminProfile } from "../controllers/adminController.js";
 import {
   addInterview,
+  candidateResume,
   candidates,
   decideLeave,
   hireCandidate,
@@ -193,7 +194,13 @@ import {
   updateMeeting,
   regenerateLink,
 } from "../controllers/meetingController.js";
-import { uploadZip, uploadStaffDocuments, removeStoredFile, storedPath } from "../utils/uploads.js";
+import {
+  uploadZip,
+  uploadCandidateResume,
+  uploadStaffDocuments,
+  removeStoredFile,
+  storedPath,
+} from "../utils/uploads.js";
 import {
   applyStaffPaperwork,
   discardUploadsIfRefused,
@@ -648,7 +655,17 @@ router.put("/hr/leave-policies/:id", leavePolicies.update);
 router.delete("/hr/leave-policies/:id", leavePolicies.remove);
 
 router.get("/hr/candidates", candidates.list);
-router.post("/hr/candidates", candidates.create);
+/**
+ * Multipart, because the application arrives with a CV. Every field is still
+ * optional and a create sent as plain JSON goes through untouched, so nothing
+ * that posted a candidate before the CV box existed has to change.
+ */
+router.post(
+  "/hr/candidates",
+  uploadCandidateResume,
+  discardUploadsIfRefused,
+  candidates.create
+);
 /**
  * Hiring creates a staff account with a login, which is why it is a route and
  * not a stage the edit form can set — see hrController, which refuses the
@@ -665,7 +682,14 @@ router.post("/hr/candidates/:id/interviews", addInterview);
 router.put("/hr/candidates/:id/interviews/:interviewId", updateInterview);
 router.delete("/hr/candidates/:id/interviews/:interviewId", removeInterview);
 router.get("/hr/candidates/:id", candidates.getOne);
-router.put("/hr/candidates/:id", candidates.update);
+router.put(
+  "/hr/candidates/:id",
+  uploadCandidateResume,
+  discardUploadsIfRefused,
+  candidates.update
+);
+// The CV itself. Behind the same guard as the record it belongs to.
+router.get("/hr/candidates/:id/resume", candidateResume);
 router.delete("/hr/candidates/:id", candidates.remove);
 
 /* --------------------------------------------------- department accounts */
@@ -1023,8 +1047,37 @@ const issues = buildCrud(Issue, {
     { path: "raisedBy", select: "name email" },
   ],
   label: (doc) => doc?.title,
-  beforeSave: cleanRefs(["project", "assignedTo", "raisedBy"]),
-  afterSave: async (issue, req, { isNew }) => {
+  /**
+   * From this panel, the only thing about an issue that may change is where
+   * it has got to.
+   *
+   * An issue is somebody's account of a problem they hit — the employee on
+   * site, the operations manager on the project. Admin's part is to read it
+   * and to say when it is done, so everything else in the payload is dropped
+   * here rather than merely hidden in the browser: a rule that only exists in
+   * a form is not a rule.
+   */
+  beforeSave: (payload) => ({ status: payload.status }),
+  afterSave: async (issue, req, { isNew, previous }) => {
+    /**
+     * Closing the loop on the person who raised it.
+     *
+     * Whoever reported a problem is the one who finds out whether it actually
+     * went away, and until this they had to keep opening the list to check.
+     * Only on the transition — saving a resolved issue again is not news.
+     */
+    const wasDone = ["resolved", "closed"].includes(previous?.status);
+    const isDone = ["resolved", "closed"].includes(issue.status);
+
+    if (!isNew && isDone && !wasDone && issue.raisedBy) {
+      notifyUser(issue.raisedBy, {
+        type: "issue",
+        title: `Your issue was ${issue.status === "closed" ? "closed" : "resolved"}`,
+        message: issue.title,
+        link: "/admin/issues",
+      });
+    }
+
     if (!isNew || !issue.project) return;
 
     const project = await Project.findById(issue.project).select("name operationsManager");
@@ -1039,11 +1092,48 @@ const issues = buildCrud(Issue, {
   },
 });
 
+// Read and resolve. Issues are raised in the panels where the work happens —
+// see the employee and operations manager routes — and are not created,
+// rewritten or deleted from here.
 router.get("/issues", issues.list);
-router.post("/issues", issues.create);
+
+/**
+ * Where everything stands, counted across every issue rather than the page on
+ * screen — "three open" out of a page of twenty-five would be a different and
+ * wrong sentence. Deliberately ignores the filters: the table answers the
+ * filtered question, these answer whether anything is on fire.
+ *
+ * Registered above /issues/:id, or "summary" would be read as an id.
+ */
+router.get("/issues/summary", async (req, res) => {
+  try {
+    const [byStatus, criticalOpen] = await Promise.all([
+      Issue.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+      Issue.countDocuments({
+        severity: { $in: ["high", "critical"] },
+        status: { $in: ["open", "in_progress"] },
+      }),
+    ]);
+
+    const counts = Object.fromEntries(byStatus.map((row) => [row._id, row.count]));
+
+    return res.status(200).json({
+      open: counts.open || 0,
+      inProgress: counts.in_progress || 0,
+      resolved: counts.resolved || 0,
+      closed: counts.closed || 0,
+      // The number somebody opens this page to find out
+      urgentOpen: criticalOpen,
+    });
+  } catch (err) {
+    console.error("issues summary error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
 router.get("/issues/:id", issues.getOne);
+// Moving it along, and nothing else — see beforeSave above.
 router.put("/issues/:id", issues.update);
-router.delete("/issues/:id", issues.remove);
 
 /* ----------------------------------------------------------------- files */
 

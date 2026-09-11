@@ -499,6 +499,14 @@ export default function AllPeople({ sources, hrefFor, addPath = "" }) {
         loading={detailLoading}
         api={adminApi}
         basePath="/admin"
+        /**
+         * The resource comes off the opened row rather than being fixed, since
+         * this list mixes employees, managers and operations managers and each
+         * serves its documents from its own prefix.
+         */
+        docPath={(id, field) =>
+          `/admin/${staffView?.source.detail.resource}/${id}/documents/${field}`
+        }
         chatPath={
           /**
            * Only employees have a chat room in this panel, and the room id is

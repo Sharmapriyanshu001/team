@@ -5,6 +5,7 @@ import {
   CalendarCheck,
   CalendarOff,
   Network,
+  Briefcase,
   Building2,
   FolderKanban,
   ListChecks,
@@ -16,14 +17,12 @@ import {
   Search,
   Handshake,
   Megaphone,
-  Landmark,
   KeyRound,
   BarChart3,
   History,
   Bell,
   ShieldCheck,
   IdCard,
-  Settings,
   User,
 } from "lucide-react";
 
@@ -36,10 +35,8 @@ import {
  * server, rather than vanishing for everyone.
  */
 const MODULE_BY_PATH = [
-  ["/admin/department-accounts", "department_accounts"],
   ["/admin/code-projects", "code_projects"],
   ["/admin/hr/recruitment", "recruitment"],
-  ["/admin/hr/accounts", "department_accounts"],
   ["/admin/sales/managers", "department_accounts"],
   ["/admin/hr/leave", "leaves"],
   ["/admin/hr", "employees"],
@@ -151,6 +148,16 @@ export const NAV_ITEMS = [
    * any of them and the panel offers only the types that account may open.
    */
   { section: "Team & Accounts" },
+  /**
+   * The client read-out, given a door of its own.
+   *
+   * It is the insights page rather than a new screen — the same one the
+   * dashboard links to — so it carries no module of its own and resolves to
+   * `dashboard` by path, exactly what the server guards /insights with. The
+   * list that EDITS a client is still the Team & Accounts panel below; this
+   * one answers "who are they and what do they have with us".
+   */
+  { label: "All Clients", to: "/admin/insights/clients", icon: Briefcase },
   {
     label: "All Candidates",
     to: "/admin/team",
@@ -215,7 +222,6 @@ export const NAV_ITEMS = [
        * client's payment references.
        */
       { label: "Payments", to: "/admin/project-payments" },
-      { label: "Create Project", to: "/admin/projects/create" },
       { label: "Assign Team", to: "/admin/projects/assign-team" },
       { label: "Timeline", to: "/admin/projects/timeline" },
     ],
@@ -276,9 +282,6 @@ export const NAV_ITEMS = [
     ],
   },
   { label: "Ads", to: "/admin/ads", icon: Megaphone },
-  // Our own apps and sites, as opposed to everything else here, which is
-  // work done for somebody else
-  { label: "Our Portfolio", to: "/admin/portfolio", icon: Landmark },
 
   /* -------------------------------------------------------------- Company */
 
@@ -298,9 +301,6 @@ export const NAV_ITEMS = [
   },
   { label: "Vault", to: "/admin/vault", icon: KeyRound },
   { label: "Reports", to: "/admin/reports", icon: BarChart3 },
-  // What the chain carries, and what each department did with it. Separate
-  // from Reports, which is the company-wide analytics view.
-  { label: "Report Chain", to: "/admin/reports/chain", icon: Network },
   { label: "Departments", to: "/admin/departments", icon: Building2 },
 
   /* ----------------------------------------------------------- Administration */
@@ -317,13 +317,9 @@ export const NAV_ITEMS = [
    * requireFullAdmin whatever their role grants: an account that can create
    * accounts can grant itself any module, so it is not a permission question.
    */
-  {
-    label: "Department Accounts",
-    to: "/admin/department-accounts",
-    icon: IdCard,
-    adminOnly: true,
-  },
   { label: "Roles & Permissions", to: "/admin/roles", icon: ShieldCheck, adminOnly: true },
-  { label: "Settings", to: "/admin/settings", icon: Settings },
+  /* The company settings live on the profile now, as its second tab — one
+     entry for the two things somebody changes about themselves and about the
+     company, rather than two that get mistaken for each other. */
   { label: "Profile", to: "/admin/profile", icon: User },
 ];

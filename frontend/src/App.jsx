@@ -93,7 +93,6 @@ import AdminReportChain from "./admin/pages/ReportChain";
 import AdminDepartments from "./admin/pages/Departments";
 import ActivityLogs from "./admin/pages/ActivityLogs";
 import RolesPermissions from "./admin/pages/RolesPermissions";
-import Settings from "./admin/pages/Settings";
 import AdminProfile from "./admin/pages/Profile";
 import LeaderPlayApps from "./leader/pages/PlayApps";
 import LeaderPlayAppDetail from "./leader/pages/PlayAppDetail";
@@ -406,19 +405,6 @@ export default function App() {
         <Route path="hr/leave/balances" element={<HrLeaveBalances />} />
         <Route path="hr/leave/policies" element={<HrLeavePolicies />} />
         <Route path="hr/recruitment" element={<HrRecruitment />} />
-        {/* The same screen as Department Accounts, pinned to HR — because
-            somebody adding an HR colleague looks for it under Human Resources */}
-        <Route
-          path="hr/accounts"
-          element={
-            <DepartmentAccounts
-              lockedRole="hr"
-              title="HR Accounts"
-              subtitle="Logins for the HR team — add as many as you need"
-            />
-          }
-        />
-
         {/* The same screen as Department Accounts, pinned to Sales — because
             somebody adding a Sales Manager looks for it under Sales, not under
             a general "department accounts" list they have to filter. */}
@@ -516,9 +502,10 @@ export default function App() {
         <Route path="reports/chain" element={<AdminReportChain />} />
         <Route path="departments" element={<AdminDepartments />} />
         <Route path="activity-logs" element={<ActivityLogs />} />
-        <Route path="department-accounts" element={<DepartmentAccounts />} />
         <Route path="roles" element={<RolesPermissions />} />
-        <Route path="settings" element={<Settings />} />
+        {/* Settings folded into the profile as its Company tab. The old
+            address still answers so a bookmark does not dead-end */}
+        <Route path="settings" element={<Navigate to="/admin/profile" replace />} />
         <Route path="profile" element={<AdminProfile />} />
       </Route>
 

@@ -1,10 +1,24 @@
 import ChangeRequest, { CHANGE_PRIORITIES, CHANGE_STATUSES } from "../models/ChangeRequest.js";
 import Project from "../models/Project.js";
-import User, { ADMIN_ROLES } from "../models/User.js";
+import User, { ADMIN_ROLES, LEADER_ROLES } from "../models/User.js";
 
 import { clientOf } from "../utils/actor.js";
 import { logActivity } from "../utils/activity.js";
 import { notifyClient, notifyUser, notifyUsers } from "../utils/notify.js";
+
+/**
+ * Who a change can be handed to at all.
+ *
+ * The people who do delivery work, which is every employee and every manager
+ * running one. Deliberately not "anybody with a login": a change put on an HR
+ * account or a client is a change nobody is doing, and the two panels that
+ * would have to show it do not have a screen for one.
+ */
+const ASSIGNABLE_ROLES = ["employee", ...LEADER_ROLES];
+
+/** Where the person told about an assignment should be sent to find it. */
+const panelLinkFor = (role) =>
+  LEADER_ROLES.includes(role) ? "/operation-manager/change-requests" : "/employee/change-requests";
 
 /**
  * Change requests, from every side of them.
@@ -81,7 +95,17 @@ export const audienceOf = async (req) => {
       kind: "leader",
       actor: req.leader,
       name: req.leader.name,
-      filter: { project: { $in: projectIds } },
+      /**
+       * Their projects, or anything handed to them personally.
+       *
+       * The second half mirrors what the employee filter below has always
+       * done, and exists for the same reason: an admin can now put a change
+       * on a manager who does not run that project, and a request somebody
+       * has been told to do but cannot open is worse than no assignment.
+       */
+      filter: {
+        $or: [{ project: { $in: projectIds } }, { assignedTo: req.leader._id }],
+      },
       canManage: true,
       canDecide: true,
     };
@@ -260,12 +284,18 @@ export const getChangeRequest = async (req, res) => {
     /**
      * Who this particular request can go to, sent with it.
      *
-     * The project's own people, not a company-wide staff list — the assign
-     * handler refuses anybody who is not on the project, so a dropdown built
-     * from anything wider is a list of choices that will be rejected. Read
-     * here rather than from a lookup endpoint each panel would have to call,
-     * because the answer depends on the request and the panels do not
-     * otherwise know the project's roster.
+     * The project's own roster first, then everybody else who does delivery
+     * work, each marked with which of the two they are. It used to be the
+     * roster alone, on the reasoning that the assign handler refused anybody
+     * else — but that made the common case impossible: a change arrives on a
+     * project with an empty team and the administrator, who can see the whole
+     * company, is offered nobody at all. The handler now takes anybody on this
+     * list and puts them on the project as part of assigning, so the list and
+     * the rule agree again.
+     *
+     * `onProject` is what lets the screen group them, because the two are not
+     * the same choice — handing work to somebody already on the project is a
+     * smaller act than pulling a stranger onto it.
      *
      * Only for somebody who can actually assign. There is no reason a client
      * should receive the names of everybody who could be put on their change.
@@ -279,14 +309,23 @@ export const getChangeRequest = async (req, res) => {
 
       const roster = [project?.operationsManager, ...(project?.members || [])].filter(Boolean);
       const seen = new Set();
-      assignableTo = roster
-        .filter((p) => !seen.has(String(p._id)) && seen.add(String(p._id)))
-        .map((p) => ({
-          _id: p._id,
-          name: p.name,
-          designation: p.designation || "",
-          role: p.role,
-        }));
+      const onProject = roster.filter((p) => !seen.has(String(p._id)) && seen.add(String(p._id)));
+
+      const elsewhere = await User.find({
+        role: { $in: ASSIGNABLE_ROLES },
+        status: "active",
+        _id: { $nin: [...seen] },
+      })
+        .select("name designation role")
+        .sort({ name: 1 });
+
+      assignableTo = [...onProject, ...elsewhere].map((p) => ({
+        _id: p._id,
+        name: p.name,
+        designation: p.designation || "",
+        role: p.role,
+        onProject: seen.has(String(p._id)),
+      }));
     }
 
     /**
@@ -418,19 +457,36 @@ export const assignChangeRequest = async (req, res) => {
     if (!assignedTo) return res.status(400).json({ message: "Choose who this is for" });
 
     /**
-     * The assignee has to be on the project. Otherwise a change could be put
-     * on somebody who cannot open the project it belongs to, and they would
-     * receive a notification about work they are unable to see.
+     * It has to be somebody who does delivery work. That is the only rule
+     * left: a change on an HR login or a closed account is a change nobody is
+     * doing, and neither has a screen that would show it to them.
+     */
+    const person = await User.findById(assignedTo).select("name role status");
+    if (!person || person.status !== "active" || !ASSIGNABLE_ROLES.includes(person.role)) {
+      return res.status(400).json({ message: "That person cannot be given a change to do" });
+    }
+
+    /**
+     * Somebody off the project is put on it, rather than refused.
+     *
+     * The old rule was that the assignee had to already be on the project,
+     * because a person told to do work they cannot open is worse than one
+     * nobody told. That reasoning was right and the rule was the wrong answer
+     * to it — it meant a change on a project with no team yet could not be
+     * given to anybody, which is exactly when somebody needs to be pulled in.
+     *
+     * So the requirement is met by satisfying it instead of by refusing:
+     * being handed the change puts them on the project, and the response and
+     * the thread both say so, because quietly changing who is on a project is
+     * not a thing to do behind somebody's back.
      */
     const project = await Project.findById(doc.project).select("name operationsManager members");
-    const onProject = [project?.operationsManager, ...(project?.members || [])]
+    const alreadyOn = [project?.operationsManager, ...(project?.members || [])]
       .filter(Boolean)
       .some((id) => String(id) === assignedTo);
 
-    if (!onProject) {
-      return res.status(400).json({
-        message: "That person is not on this project — add them to it first",
-      });
+    if (!alreadyOn) {
+      await Project.updateOne({ _id: doc.project }, { $addToSet: { members: assignedTo } });
     }
 
     const changed = String(doc.assignedTo || "") !== assignedTo;
@@ -445,7 +501,11 @@ export const assignChangeRequest = async (req, res) => {
       authorModel: "User",
       authorName: audience.name,
       authorRole: audience.kind,
-      note: String(req.body.note || "").trim() || "Assigned",
+      note:
+        String(req.body.note || "").trim() ||
+        (alreadyOn
+          ? `Assigned to ${person.name}`
+          : `Assigned to ${person.name}, who was added to the project team`),
       status: doc.status,
     });
 
@@ -465,7 +525,8 @@ export const assignChangeRequest = async (req, res) => {
         type: "task",
         title: "A client change was assigned to you",
         message: `${project?.name || "Project"} — ${doc.title}`,
-        link: "/employee/change-requests",
+        // A manager and an employee read this on two different screens
+        link: panelLinkFor(person.role),
       });
     }
 
@@ -477,7 +538,13 @@ export const assignChangeRequest = async (req, res) => {
     });
 
     const item = await withRefs(ChangeRequest.findById(doc._id));
-    return res.status(200).json({ message: "Assigned", item: shape(item, audience) });
+    return res.status(200).json({
+      message: alreadyOn
+        ? `Assigned to ${person.name}`
+        : `Assigned to ${person.name} — also added to ${project?.name || "the project"}`,
+      addedToProject: !alreadyOn,
+      item: shape(item, audience),
+    });
   } catch (err) {
     if (err.name === "CastError") return notFound(res);
     console.error("assignChangeRequest error:", err);

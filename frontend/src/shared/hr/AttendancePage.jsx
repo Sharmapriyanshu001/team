@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -36,7 +36,6 @@ export default function AttendancePage({ api, basePath, canEdit = true }) {
   const [month, setMonth] = useState(monthInput());
 
   const [rows, setRows] = useState([]);
-  const [summary, setSummary] = useState({});
   const [daily, setDaily] = useState([]);
 
   const [loading, setLoading] = useState(true);
@@ -56,7 +55,6 @@ export default function AttendancePage({ api, basePath, canEdit = true }) {
       .then(({ data }) => {
         if (!active) return;
         setRows(data.items || []);
-        setSummary(data.summary || {});
         setError("");
       })
       .catch((err) => {
@@ -81,6 +79,30 @@ export default function AttendancePage({ api, basePath, canEdit = true }) {
       active = false;
     };
   }, [api, basePath, month, reloadKey]);
+
+  /**
+   * The counters count the sheet on screen, not the sheet on the server.
+   *
+   * They used to be the summary that came back beside the rows, which is
+   * right until the first edit and wrong from then on: "Mark all present"
+   * moved eleven people out of Unmarked and the counters went on saying
+   * Unmarked 11 until a save came back and a fresh summary with it. Counting
+   * `rows` here — by the same rule the server counts by, a row counts under
+   * its status and an unset one counts as unmarked — they agree with the
+   * server on arrival and keep up with every change made before a save.
+   */
+  const summary = useMemo(
+    () =>
+      rows.reduce(
+        (acc, row) => {
+          if (row.status) acc[row.status] = (acc[row.status] || 0) + 1;
+          else acc.unmarked += 1;
+          return acc;
+        },
+        { present: 0, absent: 0, half_day: 0, leave: 0, unmarked: 0 }
+      ),
+    [rows]
+  );
 
   const changeDate = (value) => {
     setLoading(true);

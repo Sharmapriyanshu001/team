@@ -672,6 +672,11 @@ export default function Employees({ embedded = false }) {
          */
         api={hrApi}
         basePath="/hr"
+        /**
+         * HR files every staff document under one route, whatever the role —
+         * so the scans in the Documents tab open from here.
+         */
+        docPath={(id, field) => `/hr/documents/${id}/${field}`}
       />
 
       {/* ------------------------------------------------- add and edit */}

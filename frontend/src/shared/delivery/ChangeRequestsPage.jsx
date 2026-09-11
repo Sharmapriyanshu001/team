@@ -44,6 +44,46 @@ const PRIORITY_TONE = { low: "slate", medium: "blue", high: "red" };
 
 const BLANK = { project: "", title: "", detail: "", priority: "medium" };
 
+/**
+ * How long a request has been sitting there, in days.
+ *
+ * The number the monitoring screen is really for. A list sorted by date tells
+ * you when things arrived; "waiting 9 days, nobody on it" tells you which one
+ * is about to become a phone call from the client.
+ */
+const ageInDays = (value) =>
+  value ? Math.floor((Date.now() - new Date(value).getTime()) / 86400000) : 0;
+
+/** The people a change can go to, split by whether they are on the project. */
+function PeopleOptions({ people }) {
+  const label = (p) => (p.designation ? `${p.name} — ${p.designation}` : p.name);
+  const onProject = people.filter((p) => p.onProject);
+  const elsewhere = people.filter((p) => !p.onProject);
+
+  return (
+    <>
+      {onProject.length > 0 && (
+        <optgroup label="On this project">
+          {onProject.map((p) => (
+            <option key={p._id} value={p._id}>
+              {label(p)}
+            </option>
+          ))}
+        </optgroup>
+      )}
+      {elsewhere.length > 0 && (
+        <optgroup label="Elsewhere — they get added to the project">
+          {elsewhere.map((p) => (
+            <option key={p._id} value={p._id}>
+              {label(p)}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
+}
+
 const when = (value) =>
   value
     ? new Date(value).toLocaleString("en-IN", {
@@ -72,6 +112,16 @@ export default function ChangeRequestsPage({ api, basePath, title, subtitle, pro
 
   const [view, setView] = useState("all");
   const [status, setStatus] = useState("all");
+  const [priority, setPriority] = useState("all");
+  /**
+   * What is typed, and what has been asked for.
+   *
+   * Two states because the list refetches on the second: bound straight to the
+   * input it fired a request per keystroke, so typing "homepage" asked the
+   * server eight questions and rendered the answer to whichever came back
+   * last.
+   */
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
 
   const [open, setOpen] = useState(null);
@@ -84,18 +134,45 @@ export default function ChangeRequestsPage({ api, basePath, title, subtitle, pro
   const [reply, setReply] = useState({ note: "", progress: "" });
   // Who this particular request may go to, as the server sees it
   const [people, setPeople] = useState([]);
+  /**
+   * Handing a request over without opening it.
+   *
+   * The drawer could always assign, but only after opening the request and
+   * reading its whole history — which is three clicks and a scroll to do the
+   * one thing an administrator opens this screen to do. { row, people, pick }.
+   */
+  const [assigning, setAssigning] = useState(null);
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
   useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  /** A success note is an acknowledgement, not a banner to live with. */
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = setTimeout(() => setNotice(""), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  /**
+   * The previous answer stays on screen while the next one is fetched.
+   *
+   * Clearing it first dropped the whole page back to a loading spinner every
+   * time somebody changed a filter, so the list somebody was comparing
+   * against vanished at the moment they tried to narrow it.
+   */
+  useEffect(() => {
     let active = true;
-    setData(null);
 
     api
       .get(`${basePath}/change-requests`, {
         params: {
           view: view === "all" ? undefined : view,
           status: status === "all" ? undefined : status,
+          priority: priority === "all" ? undefined : priority,
           search: search || undefined,
         },
       })
@@ -111,7 +188,7 @@ export default function ChangeRequestsPage({ api, basePath, title, subtitle, pro
     return () => {
       active = false;
     };
-  }, [api, basePath, view, status, search, reloadKey]);
+  }, [api, basePath, view, status, priority, search, reloadKey]);
 
   /** Opening one fetches the thread — the list carries the row, not its history. */
   const openRequest = async (row) => {
@@ -166,20 +243,46 @@ export default function ChangeRequestsPage({ api, basePath, title, subtitle, pro
     }
   };
 
-  const assign = async (assignedTo) => {
-    if (!open || !assignedTo) return;
+  /**
+   * Hand one over. Takes the request rather than reading the open one, so the
+   * list and the drawer are the same call made from two places.
+   */
+  const assignTo = async (requestId, assignedTo) => {
+    if (!requestId || !assignedTo) return;
     setBusy(true);
     try {
-      const { data: d } = await api.put(`${basePath}/change-requests/${open._id}/assign`, {
+      const { data: d } = await api.put(`${basePath}/change-requests/${requestId}/assign`, {
         assignedTo,
       });
-      setOpen(d.item);
+      // Only refresh the drawer if it is this request that is open behind it
+      setOpen((current) => (current && current._id === requestId ? d.item : current));
+      setAssigning(null);
       setNotice(d.message || "Assigned");
       reload();
     } catch (err) {
       setError(err.response?.data?.message || "Could not assign that");
     } finally {
       setBusy(false);
+    }
+  };
+
+  /**
+   * Opening the hand-over box for a row. The roster comes from the request
+   * itself — it is the project's, and the list does not carry it — so the box
+   * opens straight away and fills in when the answer lands.
+   */
+  const startAssign = async (row) => {
+    setAssigning({ row, people: null, pick: row.assignedTo?._id || "" });
+    try {
+      const { data: d } = await api.get(`${basePath}/change-requests/${row._id}`);
+      setAssigning((current) =>
+        current && current.row._id === row._id
+          ? { ...current, people: d.assignableTo || [] }
+          : current
+      );
+    } catch (err) {
+      setAssigning(null);
+      setError(err.response?.data?.message || "Could not open that");
     }
   };
 
@@ -198,17 +301,6 @@ export default function ChangeRequestsPage({ api, basePath, title, subtitle, pro
         }
       >
         <Select
-          value={view}
-          onChange={(e) => setView(e.target.value)}
-          className="w-40"
-          options={[
-            { value: "all", label: "Everything" },
-            { value: "open", label: "Still outstanding" },
-            ...(isClient ? [] : [{ value: "mine", label: "Assigned to me" }]),
-            ...(data?.can?.manage ? [{ value: "unassigned", label: "Nobody on it" }] : []),
-          ]}
-        />
-        <Select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           className="w-36"
@@ -218,6 +310,15 @@ export default function ChangeRequestsPage({ api, basePath, title, subtitle, pro
               value: s,
               label: prettify(s),
             })),
+          ]}
+        />
+        <Select
+          value={priority}
+          onChange={(e) => setPriority(e.target.value)}
+          className="w-36"
+          options={[
+            { value: "all", label: "Any priority" },
+            ...["high", "medium", "low"].map((p) => ({ value: p, label: `${prettify(p)} priority` })),
           ]}
         />
         {canRaise && (
@@ -240,19 +341,77 @@ export default function ChangeRequestsPage({ api, basePath, title, subtitle, pro
         <Loader label="Loading requests…" />
       ) : (
         <>
+          {/**
+           * The counters are the filter.
+           *
+           * They always described exactly the four slices somebody wants to
+           * see, and reading "Not started 6" then hunting for the right
+           * dropdown to show those six was work the number had already done.
+           *
+           * They toggle, and that matters more than it looks: with the view
+           * dropdown gone these are the only control that sets one, so a tile
+           * that could be switched on and not off would be a filter somebody
+           * could get stuck inside.
+           */}
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {[
-              { label: "Outstanding", value: data.counts.outstanding, tone: "text-amber-700" },
-              { label: "Not started", value: data.counts.open },
-              { label: "Being worked on", value: data.counts.inProgress, tone: "text-blue-700" },
-              { label: "Completed", value: data.counts.completed, tone: "text-green-700" },
+              {
+                label: "Outstanding",
+                value: data.counts.outstanding,
+                tone: "text-amber-700",
+                on: view === "open" && status === "all",
+                apply: () => {
+                  const off = view === "open" && status === "all";
+                  setView(off ? "all" : "open");
+                  setStatus(off ? "all" : "all");
+                },
+              },
+              {
+                label: "Not started",
+                value: data.counts.open,
+                on: status === "open",
+                apply: () => {
+                  const off = status === "open";
+                  setView(off ? "all" : "all");
+                  setStatus(off ? "all" : "open");
+                },
+              },
+              {
+                label: "Being worked on",
+                value: data.counts.inProgress,
+                tone: "text-blue-700",
+                on: status === "in_progress",
+                apply: () => {
+                  const off = status === "in_progress";
+                  setView(off ? "all" : "all");
+                  setStatus(off ? "all" : "in_progress");
+                },
+              },
+              {
+                label: "Completed",
+                value: data.counts.completed,
+                tone: "text-green-700",
+                on: status === "completed",
+                apply: () => {
+                  const off = status === "completed";
+                  setView(off ? "all" : "all");
+                  setStatus(off ? "all" : "completed");
+                },
+              },
             ].map((s) => (
-              <Card key={s.label} className="px-4 py-3">
+              <button
+                key={s.label}
+                type="button"
+                onClick={s.apply}
+                className={`rounded-xl border bg-white px-4 py-3 text-left transition-colors hover:border-slate-300 ${
+                  s.on ? "border-blue-500 ring-1 ring-blue-500" : "border-slate-200"
+                }`}
+              >
                 <p className="text-xs text-slate-500">{s.label}</p>
                 <p className={`mt-0.5 text-xl font-semibold ${s.tone || "text-slate-900"}`}>
                   {s.value ?? 0}
                 </p>
-              </Card>
+              </button>
             ))}
           </div>
 
@@ -260,8 +419,8 @@ export default function ChangeRequestsPage({ api, basePath, title, subtitle, pro
             <div className="border-b border-slate-200 p-3">
               <Input
                 placeholder="Search what was asked for"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="max-w-xs"
               />
             </div>
@@ -278,47 +437,149 @@ export default function ChangeRequestsPage({ api, basePath, title, subtitle, pro
               />
             ) : (
               <div className="divide-y divide-slate-100">
-                {data.items.map((row) => (
-                  <button
-                    key={row._id}
-                    type="button"
-                    onClick={() => openRequest(row)}
-                    className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-slate-900">{row.title}</span>
-                        <Badge value={prettify(row.status)} tone={STATUS_TONE[row.status]} />
-                        <Badge value={row.priority} tone={PRIORITY_TONE[row.priority]} />
-                      </div>
+                {data.items.map((row) => {
+                  const waiting = ["open", "in_progress"].includes(row.status);
+                  const age = waiting ? ageInDays(row.createdAt) : 0;
+                  /**
+                   * Only worth saying once it is a number somebody would
+                   * flinch at, and only while nobody is on it — a request
+                   * being worked on has an answer, however old it is.
+                   */
+                  const stale = waiting && !row.assignedTo && age >= 3;
 
-                      <p className="mt-0.5 truncate text-xs text-slate-500">
-                        {row.project?.name || "—"}
-                        {!isClient && row.client?.name ? ` · ${row.client.name}` : ""}
-                        {row.assignedTo ? ` · with ${row.assignedTo.name}` : " · nobody on it yet"}
-                      </p>
-
-                      {row.status !== "rejected" && (
-                        <div className="mt-2 max-w-xs">
-                          <ProgressBar value={row.progress} />
+                  return (
+                    <div
+                      key={row._id}
+                      className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-slate-50"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => openRequest(row)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-slate-900">{row.title}</span>
+                          <Badge value={prettify(row.status)} tone={STATUS_TONE[row.status]} />
+                          <Badge value={row.priority} tone={PRIORITY_TONE[row.priority]} />
+                          {stale && (
+                            <span
+                              className={`text-xs font-medium ${
+                                age >= 7 ? "text-red-600" : "text-amber-700"
+                              }`}
+                            >
+                              waiting {age} days
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
 
-                    <div className="shrink-0 text-right">
-                      <p className="text-xs text-slate-400">{when(row.createdAt)}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {row.updates?.length || 0} update
-                        {(row.updates?.length || 0) === 1 ? "" : "s"}
-                      </p>
+                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                          {row.project?.name || "—"}
+                          {!isClient && row.client?.name ? ` · ${row.client.name}` : ""}
+                          {row.assignedTo ? ` · with ${row.assignedTo.name}` : " · nobody on it yet"}
+                        </p>
+
+                        {row.status !== "rejected" && (
+                          <div className="mt-2 max-w-xs">
+                            <ProgressBar value={row.progress} />
+                          </div>
+                        )}
+                      </button>
+
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <p className="text-xs text-slate-400">{when(row.createdAt)}</p>
+                        <p className="text-xs text-slate-500">
+                          {row.updates?.length || 0} update
+                          {(row.updates?.length || 0) === 1 ? "" : "s"}
+                        </p>
+                        {/**
+                         * A sibling of the row's button rather than inside it,
+                         * because a button within a button is not a thing the
+                         * browser will render — and the whole point is to hand
+                         * one over without opening it first.
+                         */}
+                        {data.can?.manage && row.status !== "rejected" && (
+                          <Button variant="ghost" size="sm" onClick={() => startAssign(row)}>
+                            <UserPlus size={13} />
+                            {row.assignedTo ? "Reassign" : "Assign"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
         </>
       )}
+
+      {/* ------------------------------------------- hand one over, from the list */}
+
+      <Modal
+        open={Boolean(assigning)}
+        title="Who should do this"
+        subtitle={assigning?.row?.title}
+        onClose={() => setAssigning(null)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setAssigning(null)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              disabled={busy || !assigning?.pick}
+              onClick={() => assignTo(assigning.row._id, assigning.pick)}
+            >
+              {busy ? "Sending…" : "Hand it over"}
+            </Button>
+          </>
+        }
+      >
+        {assigning && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500">
+              {assigning.row.project?.name || "Project"}
+              {assigning.row.client?.name ? ` · ${assigning.row.client.name}` : ""}
+            </p>
+
+            {assigning.people === null ? (
+              <Loader label="Reading the project team…" />
+            ) : (
+              <>
+                <Field label="Send it to">
+                  <Select
+                    value={assigning.pick}
+                    onChange={(e) =>
+                      setAssigning((current) => ({ ...current, pick: e.target.value }))
+                    }
+                    placeholder="Choose an employee or a manager"
+                    disabled={busy}
+                  >
+                    <PeopleOptions people={assigning.people} />
+                  </Select>
+                </Field>
+
+                {/**
+                 * Said before it happens rather than after. Being handed a
+                 * change adds somebody to the project, which is a change to
+                 * who can see that client's work — small, but not a thing to
+                 * discover afterwards.
+                 */}
+                {assigning.pick &&
+                  !assigning.people.find((p) => p._id === assigning.pick)?.onProject && (
+                    <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      They are not on this project yet — sending this adds them to the team so they
+                      can open it.
+                    </p>
+                  )}
+
+                <p className="text-xs text-slate-500">
+                  They are told straight away, and the client sees that somebody picked it up.
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* ---------------------------------------------------- raise a change */}
 
@@ -412,14 +673,12 @@ export default function ChangeRequestsPage({ api, basePath, title, subtitle, pro
                 <Field label="Who is doing it" className="flex-1">
                   <Select
                     value={open.assignedTo?._id || ""}
-                    onChange={(e) => assign(e.target.value)}
-                    placeholder="Choose somebody on the project"
-                    options={people.map((p) => ({
-                      value: p._id,
-                      label: p.designation ? `${p.name} — ${p.designation}` : p.name,
-                    }))}
+                    onChange={(e) => assignTo(open._id, e.target.value)}
+                    placeholder="Choose anybody who does the work"
                     disabled={busy}
-                  />
+                  >
+                    <PeopleOptions people={people} />
+                  </Select>
                 </Field>
                 {!open.assignedTo && (
                   <p className="pb-2 text-xs text-amber-700">

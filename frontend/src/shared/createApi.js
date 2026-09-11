@@ -57,6 +57,25 @@ export const createApi = ({ tokenKey, userKey, loginPath, logoutPath }) => {
   api.interceptors.request.use((config) => {
     const token = localStorage.getItem(tokenKey);
     if (token) config.headers.Authorization = `Bearer ${token}`;
+
+    /**
+     * A FormData body must not carry the JSON content type above.
+     *
+     * Axios decides how to encode from the header rather than from the body:
+     * with "Content-Type: application/json" set it quietly runs the FormData
+     * through formDataToJSON and stringifies the result, so every text field
+     * still arrives looking perfectly correct and every File becomes {}.
+     * Nothing throws and nothing 400s — the upload simply is not there, which
+     * is how a staff record could save an Aadhaar number and lose the scan of
+     * the card it was read off.
+     *
+     * Clearing it lets axios set multipart/form-data with the boundary.
+     */
+    if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+      if (typeof config.headers.delete === "function") config.headers.delete("Content-Type");
+      else delete config.headers["Content-Type"];
+    }
+
     return config;
   });
 

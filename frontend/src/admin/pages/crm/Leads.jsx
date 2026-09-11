@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, UserPlus, MessageSquarePlus } from "lucide-react";
 
 import { useCrud } from "../../hooks/crud";
-import useLookups from "../../hooks/useLookups";
 import adminApi from "../../adminApi";
 import DataTable from "../../../shared/components/DataTable";
 import Toolbar from "../../../shared/components/Toolbar";
@@ -33,7 +32,7 @@ const BLANK = {
   stage: "new",
   estimatedValue: "",
   followUpOn: "",
-  owner: "",
+  ownerName: "",
 };
 
 const day = (value) =>
@@ -59,7 +58,6 @@ function FollowUp({ value, stage, now }) {
 
 export default function Leads() {
   const crud = useCrud("crm/leads");
-  const lookups = useLookups();
 
   const [now, setNow] = useState(() => Date.now());
   const [summary, setSummary] = useState(null);
@@ -95,7 +93,12 @@ export default function Leads() {
         ? {
             ...BLANK,
             ...row,
-            owner: row.owner?._id || "",
+            /**
+             * Falls back to the linked account's name, so a lead assigned
+             * from the sales panel opens with that name in the box rather
+             * than with an empty one that reads as "nobody".
+             */
+            ownerName: row.ownerName || row.owner?.name || "",
             estimatedValue: row.estimatedValue || "",
             followUpOn: row.followUpOn ? row.followUpOn.slice(0, 10) : "",
           }
@@ -111,8 +114,15 @@ export default function Leads() {
         ...form,
         estimatedValue: Number(form.estimatedValue) || 0,
         followUpOn: form.followUpOn || null,
-        owner: form.owner || null,
       };
+
+      /**
+       * The linked account is not this form's to set any more, and not its to
+       * clear either. Sending nothing leaves whatever the sales panel assigned
+       * exactly as it was — an admin correcting a phone number here must not
+       * quietly take a lead off the rep chasing it.
+       */
+      delete payload.owner;
       if (editing?._id) await crud.update(editing._id, payload);
       else await crud.create(payload);
       setEditing(null);
@@ -180,7 +190,12 @@ export default function Leads() {
       header: "Call back",
       render: (row) => <FollowUp value={row.followUpOn} stage={row.stage} now={now} />,
     },
-    { key: "owner", header: "Owner", render: (row) => row.owner?.name || "—" },
+    {
+      key: "owner",
+      header: "Owner",
+      // The typed name wins, because it is the one this screen can set.
+      render: (row) => row.ownerName || row.owner?.name || "—",
+    },
     { key: "stage", header: "Stage", render: (row) => <Badge value={row.stage} /> },
     {
       key: "actions",
@@ -380,12 +395,15 @@ export default function Leads() {
               onChange={(e) => setForm((f) => ({ ...f, followUpOn: e.target.value }))}
             />
           </Field>
-          <Field label="Owner" className="sm:col-span-2">
-            <Select
-              value={form.owner}
-              onChange={(e) => setForm((f) => ({ ...f, owner: e.target.value }))}
-              options={lookups.staffOptions}
-              placeholder="Nobody yet"
+          <Field
+            label="Owner"
+            hint="A name for your own reference — it does not give anybody access to this lead"
+            className="sm:col-span-2"
+          >
+            <Input
+              value={form.ownerName}
+              onChange={(e) => setForm((f) => ({ ...f, ownerName: e.target.value }))}
+              placeholder="Who is chasing this"
             />
           </Field>
           <Field label="What they want" className="sm:col-span-2">

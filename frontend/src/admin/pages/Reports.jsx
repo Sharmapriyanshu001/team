@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Download, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import adminApi from "../adminApi";
 import DataTable from "../../shared/components/DataTable";
@@ -45,9 +45,6 @@ const monthsAgo = (n) => {
   d.setMonth(d.getMonth() - n);
   return d.toISOString().slice(0, 10);
 };
-
-// Quote a value so commas inside names do not break the CSV.
-const csvCell = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
 export default function Reports() {
   const [from, setFrom] = useState(monthsAgo(5));
@@ -94,31 +91,6 @@ export default function Reports() {
     setTo(value);
   };
 
-  const exportCsv = () => {
-    if (!data) return;
-
-    const header = ["Project", "Client", "Operations Manager", "Status", "Progress", "Budget", "Start", "End"];
-    const rows = data.projects.map((p) => [
-      p.name,
-      p.client?.company || p.client?.name || "",
-      p.operationsManager?.name || "",
-      prettify(p.status),
-      `${p.progress}%`,
-      p.budget,
-      p.startDate ? new Date(p.startDate).toLocaleDateString("en-IN") : "",
-      p.endDate ? new Date(p.endDate).toLocaleDateString("en-IN") : "",
-    ]);
-
-    const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `jha-report-${from}-to-${to}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   const projectColumns = [
     {
       key: "name",
@@ -147,10 +119,6 @@ export default function Reports() {
         <Button variant="outline" onClick={reload}>
           <RefreshCw size={15} />
           Refresh
-        </Button>
-        <Button onClick={exportCsv} disabled={!data}>
-          <Download size={15} />
-          Export CSV
         </Button>
       </PageHeader>
 

@@ -20,3 +20,13 @@ export const prettify = (value) =>
   String(value || "")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+
+// 1536000 -> "1.5 MB". Every stored scan carries its size in bytes.
+// Anything under a kilobyte is shown in bytes rather than rounded to "0 KB",
+// which reads as a broken file rather than a small one.
+export const fileSize = (bytes = 0) => {
+  if (!bytes) return "";
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+};

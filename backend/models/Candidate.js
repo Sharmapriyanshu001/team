@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
 
+import { removeStoredFile } from "../utils/uploads.js";
+import { uploadedFileSchema } from "./uploadedFile.js";
+
 /**
  * Somebody being considered for a job.
  *
@@ -114,7 +117,36 @@ const candidateSchema = new mongoose.Schema(
     experience: { type: String, trim: true, default: "" },
     skills: { type: [String], default: [] },
 
+    /**
+     * A link to a CV somewhere else. Kept because rows in this database carry
+     * it, and still filled in by anyone who has only a URL — but `resume`
+     * below is what the panel asks for now, for the reason the hire route has
+     * always given: a link into somebody else's Drive stops working the week
+     * they tidy it up.
+     */
     resumeUrl: { type: String, trim: true, default: "" },
+
+    /**
+     * Their CV, as bytes this company holds.
+     *
+     * Asked for when the application is recorded rather than at the hire. The
+     * hire is the one candidate in twenty who got that far; the other nineteen
+     * are shortlisted or turned down by reading this, and until it lived here
+     * there was nowhere to put it.
+     */
+    resume: { type: uploadedFileSchema, default: undefined },
+
+    /**
+     * How long before they could start — "immediate", "30 days", "2 months".
+     *
+     * Free text rather than a number of days, because that is how it is said
+     * in the conversation it comes up in, and rounding "serving notice, last
+     * day the 14th" into a number loses the only part that was useful.
+     */
+    noticePeriod: { type: String, trim: true, default: "" },
+
+    /** What they are on now. Expected means little without it. */
+    currentSalary: { type: Number, default: 0, min: 0 },
 
     source: { type: String, enum: CANDIDATE_SOURCES, default: "other" },
     sourceDetail: { type: String, trim: true, default: "" },
@@ -198,6 +230,18 @@ const candidateSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+/**
+ * Deleting the application takes its CV off the disk with it.
+ *
+ * The shared CRUD remove only deletes the document, so without this every
+ * candidate ever turned down leaves a PDF behind that nothing references and
+ * nobody will ever look for. A hired candidate's staff record holds its own
+ * copy — see the hire route — so this never pulls a file out from under one.
+ */
+candidateSchema.pre("deleteOne", { document: true, query: false }, function () {
+  if (this.resume?.storedName) removeStoredFile(this.resume.storedName);
+});
 
 candidateSchema.pre("save", function () {
   if (!this.isModified("stage")) return;

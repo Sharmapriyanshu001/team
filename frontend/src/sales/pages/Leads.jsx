@@ -202,7 +202,15 @@ export default function Leads() {
             key: "owner",
             header: "Owner",
             render: (row) => (
-              <span className="text-xs text-slate-600">{row.owner?.name || "Unassigned"}</span>
+              /**
+               * A real assignment first, then the name typed on the admin
+               * form. Only the account decides who sees the lead, so it wins
+               * the label too — but a lead with a name against it must not
+               * read "Unassigned" here when somebody is plainly chasing it.
+               */
+              <span className="text-xs text-slate-600">
+                {row.owner?.name || row.ownerName || "Unassigned"}
+              </span>
             ),
           },
         ]

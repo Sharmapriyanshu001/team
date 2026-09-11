@@ -59,7 +59,7 @@ import {
   staff,
   staffDetails,
 } from "../controllers/hr/peopleController.js";
-import { uploadStaffDocuments } from "../utils/uploads.js";
+import { uploadCandidateResume, uploadStaffDocuments } from "../utils/uploads.js";
 import { discardUploadsIfRefused } from "../utils/staffDocuments.js";
 import { removeStaff } from "../utils/staffCrud.js";
 import {
@@ -87,6 +87,7 @@ import {
  */
 import {
   addInterview,
+  candidateResume,
   candidates,
   decideLeave,
   hireCandidate,
@@ -264,7 +265,17 @@ router.delete("/leave-policies/:id", leavePolicies.remove);
 /* ----------------------------------------------- recruitment & candidates */
 
 router.get("/candidates", candidates.list);
-router.post("/candidates", candidates.create);
+/**
+ * Multipart, because the application arrives with a CV. Every field is still
+ * optional and a create sent as plain JSON goes through untouched, so nothing
+ * that posted a candidate before the CV box existed has to change.
+ */
+router.post(
+  "/candidates",
+  uploadCandidateResume,
+  discardUploadsIfRefused,
+  candidates.create
+);
 /**
  * Hiring creates the person's staff account, which is why it is a route and
  * not a stage the edit form can set. hrController refuses "hired" on a plain
@@ -287,7 +298,14 @@ router.post("/candidates/:id/interviews", addInterview);
 router.put("/candidates/:id/interviews/:interviewId", updateInterview);
 router.delete("/candidates/:id/interviews/:interviewId", removeInterview);
 router.get("/candidates/:id", candidates.getOne);
-router.put("/candidates/:id", candidates.update);
+router.put(
+  "/candidates/:id",
+  uploadCandidateResume,
+  discardUploadsIfRefused,
+  candidates.update
+);
+// The CV itself. Behind the same guard as the record it belongs to.
+router.get("/candidates/:id/resume", candidateResume);
 router.delete("/candidates/:id", candidates.remove);
 
 /* ---------------------------------------------------------------- hiring */
