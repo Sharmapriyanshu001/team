@@ -120,12 +120,26 @@ export default function AllPeople({ sources, hrefFor, addPath = "" }) {
   const [details, setDetails] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  /**
+   * Opening a row.
+   *
+   * The spinner is switched on here rather than inside the effect below: the
+   * effect's job is to fetch, and a synchronous state update in an effect body
+   * costs an extra render pass every time — which this screen now pays on
+   * every row click rather than only on the rare press of an eye.
+   */
+  const openRow = (row) => {
+    if (row.source.detail?.kind === "staff") {
+      setDetails(null);
+      setDetailLoading(true);
+    }
+    setViewing(row);
+  };
+
   useEffect(() => {
     if (!staffView) return undefined;
 
     let active = true;
-    setDetailLoading(true);
-    setDetails(null);
 
     adminApi
       .get(`/admin/${staffView.source.detail.resource}/${staffView._id}/details`)
@@ -247,9 +261,11 @@ export default function AllPeople({ sources, hrefFor, addPath = "" }) {
   /**
    * The same three actions the single-type lists carry, on the merged one.
    *
-   * View is the one that is not always there: it opens a record's own profile,
-   * and a Sales or HR login has no profile endpoint behind it. Those rows show
-   * Edit and Delete rather than an eye that would lead nowhere.
+   * View is on every row now. It used to be missing from the Sales and HR
+   * logins, which had no profile endpoint behind them — so the two rows a
+   * person was most likely to be looking for were the two they could not open.
+   * Those accounts have a drawer of their own now and read through the same
+   * one as everybody else.
    *
    * Edit stays a Link because it navigates — it opens whichever screen owns
    * the record, which is the whole reason a row remembers its source.
@@ -259,7 +275,7 @@ export default function AllPeople({ sources, hrefFor, addPath = "" }) {
       {row.source.detail && (
         <button
           type="button"
-          onClick={() => setViewing(row)}
+          onClick={() => openRow(row)}
           title="View full details"
           aria-label={`View ${row.name}`}
           className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
@@ -477,6 +493,15 @@ export default function AllPeople({ sources, hrefFor, addPath = "" }) {
           pages={pages}
           total={filtered.length}
           onPageChange={setPage}
+          /**
+           * The row is the way in. Reading somebody's record is what this
+           * screen is for, and making people find a 15px eye to do it put the
+           * commonest action behind the smallest target on the page.
+           *
+           * The three action buttons stop the click from reaching here, so
+           * Edit and Delete still mean only themselves.
+           */
+          onRowClick={openRow}
           renderCard={renderCard}
           emptyTitle={narrowed ? "Nobody matches that" : "Nobody here yet"}
           emptyMessage={
@@ -503,9 +528,17 @@ export default function AllPeople({ sources, hrefFor, addPath = "" }) {
          * The resource comes off the opened row rather than being fixed, since
          * this list mixes employees, managers and operations managers and each
          * serves its documents from its own prefix.
+         *
+         * The department logins get none. Their paperwork is not collected
+         * through this panel and there is no route serving it, so passing a
+         * path would draw an Open button onto a file that cannot be fetched —
+         * the drawer lists what is on record without one instead.
          */
-        docPath={(id, field) =>
-          `/admin/${staffView?.source.detail.resource}/${id}/documents/${field}`
+        docPath={
+          staffView?.source.detail.resource === "department-accounts"
+            ? undefined
+            : (id, field) =>
+                `/admin/${staffView?.source.detail.resource}/${id}/documents/${field}`
         }
         chatPath={
           /**

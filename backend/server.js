@@ -198,6 +198,35 @@ const server = http.createServer(app);
  */
 const MONGO_RETRIES = Number(process.env.MONGO_RETRIES || 5);
 
+/**
+ * Is MONGO_URI pointing at this machine?
+ *
+ * It decides which advice a failure gets. The two cases have nothing in
+ * common: a local URI that refuses a connection means no mongod is running
+ * here, and telling somebody to check an Atlas IP access list sends them
+ * looking at a cluster they are not using.
+ */
+const LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
+
+const isLocalMongo = (uri = "") =>
+  LOCAL_HOSTS.some((host) => uri.includes(`//${host}:`) || uri.includes(`//${host}/`));
+
+/** What to do about it, in the words of whichever setup this is. */
+const mongoAdvice = () => {
+  if (isLocalMongo(process.env.MONGO_URI)) {
+    return [
+      "   No MongoDB is answering on this machine.",
+      "   Start it in its own terminal with:  npm run dev:db",
+      "   (leave that terminal open, then start this one again)",
+    ];
+  }
+
+  return [
+    "   Checks: is this machine's IP on the Atlas access list, is the cluster awake,",
+    "   and is MONGO_URI in backend/.env correct?",
+  ];
+};
+
 const connectMongo = async () => {
   if (!process.env.MONGO_URI) {
     throw new Error("MONGO_URI is not set — add it to backend/.env");
@@ -215,6 +244,9 @@ const connectMongo = async () => {
       console.warn(
         `⏳ MongoDB connect failed (attempt ${attempt}/${MONGO_RETRIES}): ${err.message}`
       );
+      // Said on the first failure rather than only after the last one, so
+      // nobody watches a retry loop for a minute wondering what to do
+      if (attempt === 1) mongoAdvice().forEach((line) => console.warn(line));
       console.warn(`   retrying in ${Math.round(waitMs / 1000)}s…`);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
@@ -240,10 +272,7 @@ const startServer = async () => {
     );
   } catch (err) {
     console.error("❌ MongoDB connection error:", err.message);
-    console.error(
-      "   Checks: is this machine's IP on the Atlas access list, is the cluster awake,"
-    );
-    console.error("   and is MONGO_URI in backend/.env correct?");
+    mongoAdvice().forEach((line) => console.error(line));
     process.exit(1);
   }
 };

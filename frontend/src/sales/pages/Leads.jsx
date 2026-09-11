@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ClipboardList,
   MessageSquarePlus,
@@ -60,8 +61,24 @@ export default function Leads() {
   const [notice, setNotice] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
+  /**
+   * The stage filter is seeded from the URL, so a link can point at one.
+   *
+   * The dashboard's "Won this month" tile had nowhere honest to go before
+   * this: the pipeline board only draws the open stages, so a won deal landed
+   * on a board that could not show it. "?stage=won" lands here instead, on the
+   * list that can.
+   */
+  const [params, setParams] = useSearchParams();
+
   const [search, setSearch] = useState("");
-  const [stage, setStage] = useState("open");
+  const [stage, setStageValue] = useState(params.get("stage") || "open");
+
+  // Kept in the URL so the view can be linked to and survives a reload
+  const setStage = (next) => {
+    setStageValue(next);
+    setParams(next && next !== "open" ? { stage: next } : {}, { replace: true });
+  };
   const [source, setSource] = useState("");
   const [owner, setOwner] = useState("");
 

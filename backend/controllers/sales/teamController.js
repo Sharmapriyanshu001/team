@@ -12,7 +12,8 @@ import {
   teamFilterFor,
   unclaimedTeamFilter,
 } from "../../utils/salesAccess.js";
-import { comparePassword, hashPassword } from "../../utils/password.js";
+import { hashPassword } from "../../utils/password.js";
+import { credentialsFor as readCredentials, resolvePassword } from "../../utils/staffPassword.js";
 
 /**
  * The sales team's own logins, and how each of them is doing.
@@ -62,51 +63,13 @@ const shape = (user) => ({
 });
 
 /**
- * The password is the mobile number unless one is typed — the same rule every
- * other account in this app follows, so there is one answer to "what is their
- * password" rather than one per screen.
+ * What to store and what to show — both from utils/staffPassword, which is the
+ * one place that knows the starting password this system hands out.
  */
-const resolvePassword = (body, existing) => {
-  const typed = String(body.password || "").trim();
-  const phone = String(body.phone ?? existing?.phone ?? "").trim();
-
-  if (typed) {
-    if (typed.length < 6) return { error: "Password must be at least 6 characters" };
-    return { password: typed };
-  }
-
-  if (!existing) {
-    if (!phone) return { error: "Enter a mobile number — it becomes the login password" };
-    if (phone.replace(/\D/g, "").length < 6) {
-      return { error: "That mobile number is too short to use as a password" };
-    }
-    return { password: phone };
-  }
-
-  if (body.phone !== undefined && body.phone !== existing.phone && phone) {
-    return { password: phone };
-  }
-  return { password: null };
-};
-
-/**
- * The stored password is a one-way hash and cannot be read back. What can be
- * done is test it against the default this panel hands out, so the head can
- * still tell somebody their login rather than being forced to reset it.
- */
-const credentialsFor = (user) => {
-  const phone = (user.phone || "").trim();
-  const isDefault =
-    Boolean(user.password) && Boolean(phone) && comparePassword(phone, user.password);
-
-  return {
-    loginId: user.email,
-    password: isDefault ? phone : null,
-    isDefault,
-    portal: "Sales panel",
-    loginUrl: "/",
-  };
-};
+const credentialsFor = (user) => ({
+  ...readCredentials(user, "Sales panel"),
+  loginUrl: "/",
+});
 
 /* ---------------------------------------------------------------- list */
 

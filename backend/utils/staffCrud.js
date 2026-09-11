@@ -4,6 +4,7 @@ import User from "../models/User.js";
 
 import { InvalidInput } from "./crud.js";
 import { hashPassword } from "./password.js";
+import { resolvePassword } from "./staffPassword.js";
 import { removeStoredFile, storedPath } from "./uploads.js";
 import {
   applyStaffPaperwork,
@@ -42,9 +43,13 @@ export const staffBeforeSave = (payload) => {
 };
 
 /**
- * The login password is the person's mobile number unless a different one is
- * typed in. That keeps the credentials easy to hand over, and the form shows
- * exactly what they will be.
+ * The client portal's login password: the mobile number unless one is typed.
+ *
+ * Staff no longer follow this rule — they get the starting password in
+ * utils/staffPassword, which is the same for everybody and can therefore be
+ * said out loud in a handover note. A client is told their password once, by
+ * whoever sold to them, and the number on the record is what that person has
+ * in front of them, so the old rule is still the right one here.
  */
 export const resolveLoginPassword = (payload, existing, label) => {
   const custom = (payload.password || "").trim();
@@ -83,7 +88,7 @@ const STAFF_LABELS = {
 
 /** The buildCrud config for one staff role. */
 export const staffCrudOptions = (role) => {
-  const { label, entity } = STAFF_LABELS[role] || STAFF_LABELS.employee;
+  const { entity } = STAFF_LABELS[role] || STAFF_LABELS.employee;
 
   return {
     entity,
@@ -104,7 +109,14 @@ export const staffCrudOptions = (role) => {
     populate: [{ path: "reportsTo", select: "name email" }],
     sort: { createdAt: -1 },
     beforeSave: (payload, req, existing) => {
-      const password = resolveLoginPassword(payload, existing, label);
+      /**
+       * One rule for every staff login, from utils/staffPassword. This used to
+       * be the mobile number, resolved here — a seventh copy of an answer the
+       * HR and sales panels each had their own version of.
+       */
+      const { password, error } = resolvePassword(payload, existing);
+      if (error) throw new InvalidInput(error);
+
       const { data: withPapers, orphaned } = applyStaffPaperwork(payload, req, existing);
       const data = staffBeforeSave(withPapers);
 

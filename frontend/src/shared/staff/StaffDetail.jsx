@@ -34,6 +34,7 @@ import Modal from "../components/Modal";
 import SalaryTab from "./SalaryTab";
 import { Badge, Loader } from "../components/ui";
 import { fileSize, initialsOf, prettify } from "../format";
+import { passwordNote } from "../staffPassword";
 
 /**
  * One person's whole record, on one screen.
@@ -640,14 +641,18 @@ function Credentials({ credentials }) {
           </span>
           Login details
         </p>
-        <button
-          type="button"
-          onClick={() => setVisible((v) => !v)}
-          className="flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-800"
-        >
-          {visible ? <EyeOff size={13} /> : <Eye size={13} />}
-          {visible ? "Hide" : "Show"}
-        </button>
+        {/* Nothing to reveal on an account whose password only they know, so
+            the button that promises to reveal it is left out */}
+        {credentials.isDefault && (
+          <button
+            type="button"
+            onClick={() => setVisible((v) => !v)}
+            className="flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-800"
+          >
+            {visible ? <EyeOff size={13} /> : <Eye size={13} />}
+            {visible ? "Hide" : "Show"}
+          </button>
+        )}
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -658,19 +663,22 @@ function Credentials({ credentials }) {
         </div>
         <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
           <p className="text-[10px] uppercase tracking-wide text-slate-400">Password</p>
-          <p className="font-mono text-sm text-slate-900">
-            {visible ? credentials.password || "Not the default any more" : "••••••••••"}
-          </p>
-          <p className="text-[11px] text-slate-400">
-            {credentials.isDefault
-              ? "Still the default — their mobile number"
-              : "They have set their own"}
-          </p>
+          {/* A password nobody can read back is said in words, not as a
+              sentence dressed up in a monospace font pretending to be one */}
+          {credentials.isDefault ? (
+            <p className="font-mono text-sm text-slate-900">
+              {visible ? credentials.password : "••••••••••"}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500">Only they know it</p>
+          )}
+          <p className="text-[11px] text-slate-400">{passwordNote(credentials)}</p>
         </div>
       </div>
 
       <p className="mt-2.5 text-[11px] text-slate-500">
         They sign in at <span className="font-mono">/</span> — the same address everybody uses.
+        {!credentials.isDefault && " Their password can only be replaced, not read — use Edit."}
       </p>
     </div>
   );

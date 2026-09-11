@@ -181,7 +181,11 @@ import {
   operationsManagerPerformance,
   employeePerformance,
 } from "../controllers/performanceController.js";
-import { staffDetails, clientDetails } from "../controllers/recordDetailController.js";
+import {
+  staffDetails,
+  clientDetails,
+  departmentAccountDetails,
+} from "../controllers/recordDetailController.js";
 import { projectDetails } from "../controllers/projectDetailController.js";
 import {
   getAttendanceSheet,
@@ -703,6 +707,8 @@ router.delete("/hr/candidates/:id", candidates.remove);
  */
 
 router.get("/department-accounts/meta", departmentMeta);
+// Above "/:id", or "details" would be read as an account id
+router.get("/department-accounts/:id/details", departmentAccountDetails);
 router.get("/department-accounts", listDepartmentAccounts);
 router.post("/department-accounts", createDepartmentAccount);
 router.get("/department-accounts/:id", getDepartmentAccount);

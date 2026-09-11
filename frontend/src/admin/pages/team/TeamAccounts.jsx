@@ -131,15 +131,20 @@ const sourceFor = (type) => {
      *
      * Staff and clients read through two different screens — the tabbed staff
      * profile and the client one — and a row here opens the same drawer its
-     * own list opens rather than a third rendering of the same record. A Sales
-     * or HR login has no /details endpoint behind it at all, so those rows
-     * offer no View instead of an eye that leads nowhere.
+     * own list opens rather than a third rendering of the same record.
+     *
+     * The department logins read through the staff drawer too. They used to
+     * read through nothing: they had no /details endpoint, so those rows
+     * carried an Edit and a Delete and no way to simply look at the person,
+     * which is the thing somebody reaches for most often. They are staff in
+     * every way that drawer cares about — a login, a phone, a team under them
+     * and work assigned to them — so the endpoint now exists and they use it.
      */
     detail: type.staff
       ? { kind: "staff", resource: type.staff.resource }
       : type.client
         ? { kind: "client", resource: "clients" }
-        : null,
+        : { kind: "staff", resource: "department-accounts" },
   };
 };
 

@@ -17,6 +17,7 @@ import {
   TagField,
   Textarea,
 } from "../../shared/components/ui";
+import { DEFAULT_PASSWORD } from "../../shared/staffPassword";
 
 /**
  * Sales logins, opened and closed from HR.
@@ -666,7 +667,7 @@ export default function SalesManagers({ embedded = false }) {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
                   label="Password"
-                  hint={isNew ? "Blank uses the mobile number" : "Blank keeps the current one"}
+                  hint={isNew ? `Blank uses ${DEFAULT_PASSWORD}` : "Blank keeps the current one"}
                 >
                   <Input
                     type="text"

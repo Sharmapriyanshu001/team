@@ -16,6 +16,7 @@ import {
   PageHeader,
   Select,
 } from "../../shared/components/ui";
+import { DEFAULT_PASSWORD } from "../../shared/staffPassword";
 
 /**
  * The company's department managers.
@@ -234,7 +235,7 @@ export default function DepartmentManagers({ embedded = false }) {
 
         setCredentials({
           loginId: form.email,
-          // The server falls back to the mobile number when none is typed
+          // The server falls back to the starting password when none is typed
           password: form.password || form.phone,
         });
         setNotice(`${form.name} can now sign in`);
@@ -545,7 +546,7 @@ export default function DepartmentManagers({ embedded = false }) {
                   </Field>
                   <Field
                     label="Password"
-                    hint={isNew ? "Blank uses the mobile number" : "Blank keeps the current one"}
+                    hint={isNew ? `Blank uses ${DEFAULT_PASSWORD}` : "Blank keeps the current one"}
                   >
                     <Input
                       type="text"

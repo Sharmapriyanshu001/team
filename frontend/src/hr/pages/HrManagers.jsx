@@ -15,6 +15,7 @@ import {
   PageHeader,
   Select,
 } from "../../shared/components/ui";
+import { DEFAULT_PASSWORD } from "../../shared/staffPassword";
 
 /**
  * The HR team's own logins.
@@ -406,7 +407,7 @@ export default function HrManagers({ embedded = false }) {
               label="Password"
               hint={
                 editing === "new"
-                  ? "Optional — the mobile number is used if blank"
+                  ? `Optional — ${DEFAULT_PASSWORD} is used if blank`
                   : "Leave blank to keep the current one"
               }
             >

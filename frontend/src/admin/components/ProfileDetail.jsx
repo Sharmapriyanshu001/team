@@ -25,6 +25,7 @@ import adminApi from "../adminApi";
 import { CopyRow } from "./LoginCredentials";
 import Modal from "../../shared/components/Modal";
 import { Alert, Badge, Button, Loader, ProgressBar } from "../../shared/components/ui";
+import { passwordNote } from "../../shared/staffPassword";
 
 const initialsOf = (name = "") =>
   name
@@ -108,7 +109,7 @@ function EmptyLine({ children }) {
 }
 
 /** Login ID / password block. Passwords are hashed, so the real one is only
- *  readable while it is still the default (their mobile number). */
+ *  readable while it is still one the system handed out. */
 function Credentials({ credentials, portalOff }) {
   const [visible, setVisible] = useState(false);
 
@@ -146,7 +147,7 @@ function Credentials({ credentials, portalOff }) {
             label="Password"
             value={credentials.password}
             display={visible ? credentials.password : "•".repeat(credentials.password.length)}
-            hint="Still the default — their mobile number"
+            hint={passwordNote(credentials)}
           />
         ) : (
           <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
@@ -166,7 +167,7 @@ function Credentials({ credentials, portalOff }) {
       {credentials.password && (
         <p className="mt-3 flex items-start gap-1.5 text-[11px] text-slate-500">
           <ShieldAlert size={13} className="mt-0.5 shrink-0" />
-          A mobile number is easy to guess — ask them to change it from their Profile page.
+          Everybody starts on the same password — ask them to change it from their Profile page.
         </p>
       )}
     </div>

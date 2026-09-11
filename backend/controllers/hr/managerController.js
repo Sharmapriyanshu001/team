@@ -5,7 +5,8 @@ import User, {
 } from "../../models/User.js";
 
 import { logActivity } from "../../utils/activity.js";
-import { comparePassword, hashPassword } from "../../utils/password.js";
+import { hashPassword } from "../../utils/password.js";
+import { credentialsFor as readCredentials, resolvePassword } from "../../utils/staffPassword.js";
 
 /**
  * The HR team's own logins.
@@ -44,51 +45,10 @@ const shape = (user) => ({
 });
 
 /**
- * The password is the person's mobile number unless one is typed in — the same
- * rule every other account in this system follows, so there is one answer to
- * "what is their password" rather than one per screen.
+ * What to store and what to show — both from utils/staffPassword, which is the
+ * one place that knows the starting password this system hands out.
  */
-const resolvePassword = (body, existing) => {
-  const typed = String(body.password || "").trim();
-  const phone = String(body.phone ?? existing?.phone ?? "").trim();
-
-  if (typed) {
-    if (typed.length < 6) return { error: "Password must be at least 6 characters" };
-    return { password: typed };
-  }
-
-  if (!existing) {
-    if (!phone) return { error: "Enter a mobile number — it becomes the login password" };
-    if (phone.replace(/\D/g, "").length < 6) {
-      return { error: "Mobile number looks too short to use as a password" };
-    }
-    return { password: phone };
-  }
-
-  // On an edit, leave the password alone unless the mobile number moved
-  if (body.phone !== undefined && body.phone !== existing.phone && phone) {
-    return { password: phone };
-  }
-  return { password: null };
-};
-
-/**
- * The stored password is a one-way hash and cannot be read back. What can be
- * done is test it against the default this panel hands out, so the head can
- * still tell somebody their login rather than being forced to reset it.
- */
-const credentialsFor = (user) => {
-  const phone = (user.phone || "").trim();
-  const isDefault =
-    Boolean(user.password) && Boolean(phone) && comparePassword(phone, user.password);
-
-  return {
-    loginId: user.email,
-    password: isDefault ? phone : null,
-    isDefault,
-    portal: "HR panel",
-  };
-};
+const credentialsFor = (user) => readCredentials(user, "HR panel");
 
 /* --------------------------------------------------------------- list */
 

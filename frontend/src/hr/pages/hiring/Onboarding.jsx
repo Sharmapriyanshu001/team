@@ -19,6 +19,7 @@ import {
   Textarea,
 } from "../../../shared/components/ui";
 import { dateInput, shortDate } from "../../../shared/hr/constants";
+import { DEFAULT_PASSWORD } from "../../../shared/staffPassword";
 
 /**
  * The last stretch: from "we have selected them" to "they work here".
@@ -362,7 +363,7 @@ export default function Onboarding() {
 
           <Field
             label="Password"
-            hint={`Leave blank to use their mobile number${hiring?.phone ? ` (${hiring.phone})` : ""}`}
+            hint={`Leave blank to use ${DEFAULT_PASSWORD}`}
           >
             <Input
               value={hireForm.password}

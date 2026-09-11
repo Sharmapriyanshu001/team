@@ -41,6 +41,7 @@ import {
   sourceLabel,
   stageLabel,
 } from "./constants";
+import { DEFAULT_PASSWORD } from "../../shared/staffPassword";
 
 /**
  * The hiring pipeline.
@@ -1196,7 +1197,7 @@ export default function RecruitmentPage({
             </Field>
             <Field
               label="Password"
-              hint={`Leave blank to use their mobile number${hiring?.phone ? ` (${hiring.phone})` : ""}`}
+              hint={`Leave blank to use ${DEFAULT_PASSWORD}`}
             >
               <Input
                 value={hireForm.password}

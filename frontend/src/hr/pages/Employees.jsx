@@ -22,6 +22,7 @@ import {
   Textarea,
 } from "../../shared/components/ui";
 import { shortDate } from "../../shared/hr/constants";
+import { DEFAULT_PASSWORD } from "../../shared/staffPassword";
 
 /**
  * Who works here.
@@ -35,7 +36,7 @@ import { shortDate } from "../../shared/hr/constants";
  * reversible answer and is an ordinary edit from this screen.
  */
 
-/** A blank hire. The mobile number becomes the login password. */
+/** A blank hire. The starting password is used unless one is typed. */
 const BLANK = {
   name: "",
   email: "",
@@ -372,7 +373,7 @@ export default function Employees({ embedded = false }) {
 
       await hrApi.post("/hr/employees", body);
 
-      // The server falls back to the mobile number when none is typed
+      // The server falls back to the starting password when none is typed
       setCredentials({ loginId: form.email, password: form.password || form.phone });
       reload();
     } catch (err) {
@@ -816,7 +817,7 @@ export default function Employees({ embedded = false }) {
                         }))}
                       />
                     </Field>
-                    <Field label="Password" hint="Blank uses the mobile number">
+                    <Field label="Password" hint={`Blank uses ${DEFAULT_PASSWORD}`}>
                       <Input
                         name="password"
                         value={form.password}

@@ -14,6 +14,7 @@ import {
   PageHeader,
   Select,
 } from "../../shared/components/ui";
+import { DEFAULT_PASSWORD } from "../../shared/staffPassword";
 
 /**
  * The department logins: HR, Sales and Operations.
@@ -465,7 +466,7 @@ export default function DepartmentAccounts({
             </Field>
             <Field
               label="Password"
-              hint={editing === "new" ? "Optional — the mobile number is used if blank" : "Leave blank to keep the current one"}
+              hint={editing === "new" ? `Optional — ${DEFAULT_PASSWORD} is used if blank` : "Leave blank to keep the current one"}
             >
               <Input
                 value={form.password}

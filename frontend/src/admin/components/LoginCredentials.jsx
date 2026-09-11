@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { KeyRound, Copy, Check, Smartphone } from "lucide-react";
+import { KeyRound, Copy, Check, ShieldAlert } from "lucide-react";
 
 import { Field, Input } from "../../shared/components/ui";
+import { DEFAULT_PASSWORD } from "../../shared/staffPassword";
 
 /**
  * A read-only credential line with a copy-to-clipboard button. `display` lets a
@@ -45,19 +46,19 @@ export function CopyRow({ label, value, display, hint }) {
 
 /**
  * The credentials block on the Add/Edit forms. It mirrors exactly what the
- * server will store: the login ID is the email, and the password is the mobile
- * number unless the admin types a different one.
+ * server will store: the login ID is the email, and the password is the
+ * starting password every new account gets unless the admin types a different
+ * one here.
  */
 export default function LoginCredentials({
   email,
-  phone,
   password,
   onPasswordChange,
   isEdit,
   roleLabel,
   children,
 }) {
-  const effective = (password || "").trim() || phone || "";
+  const effective = (password || "").trim() || DEFAULT_PASSWORD;
 
   return (
     <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50/40 p-5">
@@ -80,10 +81,10 @@ export default function LoginCredentials({
           value={isEdit && !password ? "" : effective}
           hint={
             isEdit && !password
-              ? "Unchanged. Type a new one below, or update the mobile number to reset it."
+              ? "Unchanged. Type a new one below to reset it."
               : (password || "").trim()
                 ? "Custom password you typed below"
-                : "Their mobile number"
+                : "The starting password every new account gets"
           }
         />
       </div>
@@ -94,7 +95,7 @@ export default function LoginCredentials({
           hint={
             isEdit
               ? "Leave blank to keep the current password"
-              : "Leave blank to use the mobile number"
+              : `Leave blank to use ${DEFAULT_PASSWORD}`
           }
         >
           <Input
@@ -102,7 +103,7 @@ export default function LoginCredentials({
             type="text"
             value={password}
             onChange={onPasswordChange}
-            placeholder={phone || "Mobile number"}
+            placeholder={DEFAULT_PASSWORD}
             autoComplete="new-password"
           />
         </Field>
@@ -111,9 +112,9 @@ export default function LoginCredentials({
       </div>
 
       <p className="mt-3 flex items-start gap-1.5 text-[11px] text-slate-500">
-        <Smartphone size={13} className="mt-0.5 shrink-0" />
-        A mobile number is easy to guess, so ask them to change it from their own Profile page
-        after the first sign-in.
+        <ShieldAlert size={13} className="mt-0.5 shrink-0" />
+        The starting password is the same for everybody, so ask them to change it from their own
+        Profile page at the first sign-in.
       </p>
     </div>
   );

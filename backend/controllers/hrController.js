@@ -15,6 +15,7 @@ import { logActivity } from "../utils/activity.js";
 import { notifyUser, notifyUsers } from "../utils/notify.js";
 import { administratorIds } from "./employee/leaveController.js";
 import { hashPassword } from "../utils/password.js";
+import { resolvePassword } from "../utils/staffPassword.js";
 
 /**
  * The people side of the company: who works here, who is joining, and who is
@@ -706,7 +707,7 @@ export const removeInterview = async (req, res) => {
  * than deleted, because time-to-hire and which source produced it are the only
  * things that say whether the recruiting is working, and both die with the
  * record. The password follows the same rule as every other account this panel
- * creates — the person's mobile number unless one is typed in.
+ * creates — the starting password in utils/staffPassword unless one is typed in.
  */
 export const hireCandidate = async (req, res) => {
   try {
@@ -730,18 +731,9 @@ export const hireCandidate = async (req, res) => {
     }
 
     const phone = String(req.body.phone || candidate.phone || "").trim();
-    const typed = String(req.body.password || "").trim();
 
-    if (!typed && !phone) {
-      return res
-        .status(400)
-        .json({ message: "Enter a mobile number — it becomes the login password" });
-    }
-    if (typed && typed.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
-    }
-
-    const password = typed || phone;
+    const { password, error } = resolvePassword(req.body, null);
+    if (error) return res.status(400).json({ message: error });
 
     /**
      * The role a hire lands on comes from the request, so it is checked rather

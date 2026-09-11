@@ -15,6 +15,7 @@ import {
   Select,
 } from "../../shared/components/ui";
 import { money } from "../constants";
+import { DEFAULT_PASSWORD } from "../../shared/staffPassword";
 
 /**
  * The sales floor: who is on it, and how each of them is doing.
@@ -405,7 +406,7 @@ export default function Team() {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Password"
-                hint={isNew ? "Blank uses the mobile number" : "Blank keeps the current one"}
+                hint={isNew ? `Blank uses ${DEFAULT_PASSWORD}` : "Blank keeps the current one"}
               >
                 <Input
                   type="text"

@@ -226,8 +226,15 @@ const measure = async (metric, people, { from, to }) => {
   }
 };
 
-/** A target with its actual figure filled in and the maths done. */
-const withProgress = async (target, peopleFor) => {
+/**
+ * A target with its actual figure filled in and the maths done.
+ *
+ * Exported so the panels that show somebody their own targets — the Sales
+ * dashboard among them — read the same number this screen does. A second
+ * implementation would be a second answer to "how are we doing", and the two
+ * would disagree the first time either changed.
+ */
+export const withProgress = async (target, peopleFor) => {
   const spec = metricSpec(target.metric);
   const { from, to } = monthBounds(target.year, target.month);
 

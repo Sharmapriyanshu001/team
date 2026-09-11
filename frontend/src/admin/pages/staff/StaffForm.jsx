@@ -28,6 +28,7 @@ import {
   SelectOrOther,
   Textarea,
 } from "../../../shared/components/ui";
+import { DEFAULT_PASSWORD } from "../../../shared/staffPassword";
 
 const EMPTY = {
   name: "",
@@ -335,7 +336,7 @@ export default function StaffForm({
   const heading = isEdit ? `Edit ${title}` : `Add ${title}`;
   const blurb = isEdit
     ? "Update details, documents, bank and reporting line"
-    : "Four steps — their mobile number becomes the login password";
+    : `Four steps — the login password starts as ${DEFAULT_PASSWORD}`;
 
   return (
     <div>
@@ -525,7 +526,7 @@ function BasicStep({ form, change, problems, lookups, showOperationsManager, isE
         <Field
           label="Mobile number"
           required
-          hint={problems.phone || "This becomes the login password"}
+          hint={problems.phone || "Used to reach them, not to sign in"}
         >
           <Input name="phone" value={form.phone} onChange={change} placeholder="98765 43210" />
         </Field>

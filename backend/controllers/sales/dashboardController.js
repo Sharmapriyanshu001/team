@@ -5,6 +5,9 @@ import Lead, { LEAD_SOURCES, LEAD_STAGES } from "../../models/Lead.js";
 import Quotation from "../../models/Quotation.js";
 import SalesActivity from "../../models/SalesActivity.js";
 import User, { SALES_PANEL_ROLES } from "../../models/User.js";
+import Target from "../../models/Target.js";
+import Team, { ACTIVE_TEAM } from "../../models/Team.js";
+import { withProgress } from "../teamController.js";
 
 /**
  * The Sales dashboard and reports.
@@ -46,6 +49,18 @@ export const salesDashboard = async (req, res) => {
       ? {}
       : { $or: [{ lead: { $in: await Lead.find(scope.lead).distinct("_id") } }, { assignedTo: scope.userId }] };
 
+    /**
+     * The last six months, for the performance chart. Ends with the month
+     * being looked at rather than with today, so changing the period moves the
+     * whole picture together instead of leaving the chart behind.
+     */
+    const trendFrom = new Date(monthFrom.getFullYear(), monthFrom.getMonth() - 5, 1);
+
+    /** Invoices are scoped through the clients this account can see. */
+    const invoiceScope = scope.isSalesHead
+      ? {}
+      : { client: { $in: await Client.find(scope.client).distinct("_id") } };
+
     const [
       stageRows,
       overdue,
@@ -57,6 +72,13 @@ export const salesDashboard = async (req, res) => {
       clientsAwaiting,
       recentLeads,
       upcoming,
+      invoices,
+      trendRows,
+      teamRows,
+      highValue,
+      recentActivity,
+      awaitingList,
+      staleLeads,
     ] = await Promise.all([
       Lead.aggregate([
         { $match: { ...scope.lead } },
@@ -102,6 +124,85 @@ export const salesDashboard = async (req, res) => {
         .populate("client", "name company")
         .sort({ dueOn: 1 })
         .limit(8),
+
+      /**
+       * Money, read from the invoices rather than from won-deal estimates: an
+       * estimate is what somebody hoped for, a payment is what arrived. The
+       * same rule the reports page already applies, so the two agree.
+       */
+      Invoice.find({ ...invoiceScope, createdAt: { $gte: monthFrom, $lte: monthTo } }).select(
+        "total payments status"
+      ),
+
+      Lead.aggregate([
+        { $match: { ...scope.lead, createdAt: { $gte: trendFrom } } },
+        {
+          $group: {
+            _id: { y: { $year: "$createdAt" }, m: { $month: "$createdAt" } },
+            created: { $sum: 1 },
+            won: { $sum: { $cond: [{ $eq: ["$stage", "won"] }, 1, 0] } },
+            lost: { $sum: { $cond: [{ $eq: ["$stage", "lost"] }, 1, 0] } },
+            wonValue: {
+              $sum: { $cond: [{ $eq: ["$stage", "won"] }, { $ifNull: ["$estimatedValue", 0] }, 0] },
+            },
+          },
+        },
+        { $sort: { "_id.y": 1, "_id.m": 1 } },
+      ]),
+
+      /** Per person. A head sees the floor; an executive sees one row — their own. */
+      Lead.aggregate([
+        { $match: { ...scope.lead, owner: { $ne: null } } },
+        {
+          $group: {
+            _id: "$owner",
+            leads: { $sum: 1 },
+            won: { $sum: { $cond: [{ $eq: ["$stage", "won"] }, 1, 0] } },
+            lost: { $sum: { $cond: [{ $eq: ["$stage", "lost"] }, 1, 0] } },
+            wonValue: {
+              $sum: { $cond: [{ $eq: ["$stage", "won"] }, { $ifNull: ["$estimatedValue", 0] }, 0] },
+            },
+            openValue: {
+              $sum: {
+                $cond: [{ $in: ["$stage", ["won", "lost"]] }, 0, { $ifNull: ["$estimatedValue", 0] }],
+              },
+            },
+          },
+        },
+        { $sort: { wonValue: -1 } },
+      ]),
+
+      /** The open deals worth the most — where an hour of attention pays best. */
+      Lead.find({ ...scope.lead, stage: { $nin: ["won", "lost"] } })
+        .populate("owner", "name")
+        .sort({ estimatedValue: -1 })
+        .limit(6)
+        .select("name company stage estimatedValue source owner expectedCloseOn updatedAt"),
+
+      SalesActivity.find({ ...(scope.isSalesHead ? {} : { by: scope.userId }) })
+        .populate("lead", "name company")
+        .populate("client", "name company")
+        .sort({ occurredAt: -1 })
+        .limit(8)
+        .select("type direction subject outcome occurredAt byName lead client"),
+
+      Client.find({ ...scope.client, status: { $ne: "lead" }, handedOverAt: { $exists: false } })
+        .sort({ updatedAt: -1 })
+        .limit(6)
+        .select("name company status updatedAt"),
+
+      /**
+       * Open deals nobody has touched in a fortnight.
+       *
+       * A pipeline's real leak is not the deal that was lost — somebody at
+       * least decided that one — it is the deal that went quiet, and no count
+       * on this page would have shown it.
+       */
+      Lead.countDocuments({
+        ...scope.lead,
+        stage: { $nin: ["won", "lost"] },
+        updatedAt: { $lt: new Date(today.getTime() - 14 * 86400000) },
+      }),
     ]);
 
     const byStage = {};
@@ -126,6 +227,77 @@ export const salesDashboard = async (req, res) => {
     const wonValue = wonThisMonth.reduce((sum, l) => sum + (l.estimatedValue || 0), 0);
     const decided = wonCount + lostThisMonth;
 
+    /* --------------------------------------------------------- the money */
+
+    const billed = invoices.reduce((sum, i) => sum + (i.total || 0), 0);
+    const received = invoices.reduce(
+      (sum, i) => sum + (i.payments || []).reduce((p, pay) => p + (pay.amount || 0), 0),
+      0
+    );
+
+    /* ------------------------------------------------------- the targets */
+
+    /**
+     * What this account has agreed to hit this month — their own rows and
+     * their team's, with the actual figure counted by the same helper the
+     * Targets screen uses. Two implementations would be two answers to "how
+     * are we doing", and they would disagree the first time either changed.
+     *
+     * Never fatal: a panel with no targets set is the ordinary case, and a
+     * failure here must not take the rest of the dashboard down with it.
+     */
+    let targets = [];
+    try {
+      const myTeams = await Team.find({
+        ...ACTIVE_TEAM,
+        $or: [{ manager: scope.userId }, { members: scope.userId }],
+      }).select("name kind manager operationsManagers members");
+
+      const rows = await Target.find({
+        year: monthFrom.getFullYear(),
+        month: monthFrom.getMonth() + 1,
+        $or: [{ owner: scope.userId }, { team: { $in: myTeams.map((t) => t._id) } }],
+      })
+        .populate("team", "name kind")
+        .sort({ owner: -1 });
+
+      const peopleFor = async (target) => {
+        if (target.owner) return [String(target.owner)];
+        const team = myTeams.find(
+          (row) => String(row._id) === String(target.team?._id || target.team)
+        );
+        return team ? team.everyone() : [];
+      };
+
+      targets = await Promise.all(rows.map((row) => withProgress(row, peopleFor)));
+    } catch (err) {
+      console.error("salesDashboard targets error:", err.message);
+    }
+
+    const monthLabels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const trendMap = {};
+    trendRows.forEach((row) => {
+      trendMap[`${row._id.y}-${row._id.m}`] = row;
+    });
+
+    const trend = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(monthFrom.getFullYear(), monthFrom.getMonth() - (5 - i), 1);
+      const row = trendMap[`${d.getFullYear()}-${d.getMonth() + 1}`] || {};
+      return {
+        month: monthLabels[d.getMonth()],
+        created: row.created || 0,
+        won: row.won || 0,
+        lost: row.lost || 0,
+        wonValue: row.wonValue || 0,
+      };
+    });
+
+    const people = await User.find({ role: { $in: SALES_PANEL_ROLES } }).select("name role");
+    const nameOf = {};
+    people.forEach((p) => {
+      nameOf[String(p._id)] = { name: p.name, role: p.role };
+    });
+
     return res.status(200).json({
       scope: scope.isSalesHead ? "team" : "own",
       month: `${monthFrom.getFullYear()}-${String(monthFrom.getMonth() + 1).padStart(2, "0")}`,
@@ -143,6 +315,45 @@ export const salesDashboard = async (req, res) => {
       clientsAwaitingHandover: clientsAwaiting,
       recentLeads,
       upcomingFollowUps: upcoming,
+
+      /* ------------------------------------------- everything added since */
+
+      revenue: { billed, received, outstanding: billed - received },
+
+      targets: targets.map((target) => ({
+        _id: target._id,
+        label: target.label,
+        unit: target.unit,
+        targetValue: target.targetValue,
+        actual: target.actual,
+        percent: target.percent,
+        scope: target.owner ? "mine" : "team",
+        teamName: target.team?.name || "",
+      })),
+
+      trend,
+
+      team: teamRows.map((row) => {
+        const settled = row.won + row.lost;
+        return {
+          _id: row._id,
+          name: nameOf[String(row._id)]?.name || "Unassigned",
+          role: nameOf[String(row._id)]?.role || "",
+          leads: row.leads,
+          won: row.won,
+          lost: row.lost,
+          wonValue: row.wonValue,
+          openValue: row.openValue,
+          conversionRate: settled ? Math.round((row.won / settled) * 100) : 0,
+        };
+      }),
+
+      highValue,
+      recentActivity,
+      awaitingHandover: awaitingList,
+
+      /** Counts the "Action required" panel reads. Derived, never stored. */
+      attention: { overdueFollowUps: overdue, staleLeads, awaitingHandover: clientsAwaiting },
     });
   } catch (err) {
     console.error("salesDashboard error:", err);
