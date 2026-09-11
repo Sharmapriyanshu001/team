@@ -30,7 +30,7 @@ export { financialYear };
 
 export const leads = buildCrud(Lead, {
   entity: "Lead",
-  searchFields: ["name", "company", "email", "phone", "requirement"],
+  searchFields: ["name", "company", "email", "phone", "requirement", "ownerName"],
   filterFields: ["stage", "source", "owner"],
   populate: [
     { path: "owner", select: "name email" },

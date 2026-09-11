@@ -1,3 +1,5 @@
+import fs from "fs";
+
 import Attendance from "../models/Attendance.js";
 import Candidate, { HIRE_AS_ROLES } from "../models/Candidate.js";
 import JobOpening from "../models/JobOpening.js";
@@ -8,6 +10,7 @@ import User, { ADMIN_ROLES, DEPARTMENT_ROLES } from "../models/User.js";
 
 import { buildCrud, InvalidInput } from "../utils/crud.js";
 import { uploadedAs } from "../utils/staffDocuments.js";
+import { copyStoredDocument, removeStoredFile, storedPath } from "../utils/uploads.js";
 import { logActivity } from "../utils/activity.js";
 import { notifyUser, notifyUsers } from "../utils/notify.js";
 import { administratorIds } from "./employee/leaveController.js";
@@ -280,7 +283,7 @@ export const leaveBalances = async (req, res) => {
     const monthsElapsed =
       year < now.getFullYear() ? 12 : year > now.getFullYear() ? 0 : now.getMonth() + 1;
 
-    const [staff, policies, taken] = await Promise.all([
+    const [staff, policies, taken, pending] = await Promise.all([
       User.find({ role: { $in: STAFF_ROLES }, status: "active" })
         .select("name email role designation department joiningDate")
         .sort({ name: 1 }),
@@ -304,6 +307,24 @@ export const leaveBalances = async (req, res) => {
           },
         },
       ]),
+      /**
+       * What is asked for but not yet decided.
+       *
+       * Deliberately kept out of every figure below — a balance counts what
+       * has happened, and a request nobody has approved has not happened. It
+       * is reported alongside instead, because the person approving one needs
+       * to know the other four days already sitting in the queue behind it.
+       */
+      Leave.aggregate([
+        { $match: { status: "pending", fromDate: { $gte: from, $lte: to } } },
+        {
+          $group: {
+            _id: "$employee",
+            days: { $sum: "$days" },
+            requests: { $sum: 1 },
+          },
+        },
+      ]),
     ]);
 
     // { employeeId: { byType: { casual: 3 }, byMonth: [0,0,2,...] } }
@@ -315,6 +336,11 @@ export const leaveBalances = async (req, res) => {
         (byEmployee[id].byType[row._id.type] || 0) + row.days;
       // $month is 1-12
       byEmployee[id].byMonth[row._id.month - 1] += row.days;
+    });
+
+    const pendingByEmployee = {};
+    pending.forEach((row) => {
+      pendingByEmployee[String(row._id)] = { days: row.days, requests: row.requests };
     });
 
     const quotas = {};
@@ -382,13 +408,24 @@ export const leaveBalances = async (req, res) => {
         /** Earned so far this year, month by month. */
         accrued,
         /**
-         * What they can actually book today. Floored at zero: leave taken in
-         * advance of accruing it is a conversation, not a negative number on
-         * a dashboard.
+         * What they can actually book today. Floored at zero: an employee
+         * cannot book minus two days.
          */
         available: Math.max(0, Math.round((accrued - totalUsed) * 10) / 10),
+        /**
+         * The same subtraction without the floor, which is the one HR needs.
+         *
+         * `available` answers "may they book", and zero is the right answer
+         * for somebody who has overdrawn. But it makes a person two days in
+         * the red look identical to a person exactly at nil, and those are
+         * not the same conversation — so the signed figure is reported too
+         * and the screen shows the shortfall rather than rounding it away.
+         */
+        net: Math.round((accrued - totalUsed) * 10) / 10,
         /** The whole year's entitlement minus what is gone, as before. */
         remaining: Math.max(0, totalQuota - totalUsed),
+        /** Asked for, not yet decided. Counted against nothing. */
+        pending: pendingByEmployee[String(person._id)] || { days: 0, requests: 0 },
         months,
       };
     });
@@ -462,7 +499,36 @@ export const candidates = buildCrud(Candidate, {
     const data = { ...payload };
 
     if (data.owner === "") data.owner = null;
+    /**
+     * "Not against an opening" is a real answer, and a multipart form sends it
+     * as "" rather than leaving the field out — which Mongoose would try to
+     * cast to an ObjectId and refuse.
+     */
+    if (data.jobOpening === "") data.jobOpening = null;
     if (!existing) data.createdBy = actorOf(req)?._id;
+
+    /**
+     * The CV, when one came with this save.
+     *
+     * A save that carries no file leaves whatever is on record alone: editing
+     * a candidate's phone number must not throw their CV away. Replacing one
+     * takes the old bytes off the disk, but only once the record holding the
+     * new name has been written — an unlinked file that is still referenced is
+     * worse than an orphan nobody reads.
+     */
+    const resume = uploadedAs(req, "resume");
+    if (resume) {
+      data.resume = resume;
+
+      const previous = existing?.resume?.storedName;
+      if (previous && previous !== resume.storedName) {
+        req.res?.on("finish", () => {
+          if (req.res.statusCode < 400) removeStoredFile(previous);
+        });
+      }
+    } else {
+      delete data.resume;
+    }
 
     // Skills arrive as either a list or a comma-separated line depending on
     // which form is open. Both mean the same thing.
@@ -500,6 +566,43 @@ export const candidates = buildCrud(Candidate, {
     });
   },
 });
+
+/**
+ * Handing back one candidate's CV.
+ *
+ * The same rule the staff documents follow: nothing under uploads/ is served
+ * statically, so this is the only way to read it and it sits behind the guard
+ * the rest of the recruitment routes sit behind.
+ */
+export const candidateResume = async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.params.id).select("resume name");
+    if (!candidate) return res.status(404).json({ message: "Candidate not found" });
+
+    const file = candidate.resume;
+    const target = file?.storedName && storedPath(file.storedName);
+    if (!target) return res.status(404).json({ message: "No CV on file for this candidate" });
+
+    res.setHeader("Content-Type", file.mimeType || "application/octet-stream");
+    // Opened in a tab rather than downloaded: this is read while somebody is
+    // deciding whether to call the person, not collected.
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${(file.originalName || "cv").replace(/"/g, "")}"`
+    );
+
+    const stream = fs.createReadStream(target);
+    stream.on("error", (err) => {
+      console.error("candidateResume stream error:", err.message);
+      if (!res.headersSent) res.status(500).json({ message: "Could not read that CV" });
+    });
+    return stream.pipe(res);
+  } catch (err) {
+    if (err.name === "CastError") return res.status(404).json({ message: "Candidate not found" });
+    console.error("candidateResume error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
 
 /** POST /api/admin/hr/candidates/:id/interviews */
 export const addInterview = async (req, res) => {
@@ -697,7 +800,17 @@ export const hireCandidate = async (req, res) => {
      * Both are optional. A hire that gets held up over a missing address is a
      * person who cannot see their tasks on their first morning.
      */
-    const resume = uploadedAs(req, "resume");
+    /**
+     * A CV attached here wins; otherwise the one the application arrived with
+     * carries across. Before candidates could hold a CV this was the only
+     * chance to capture it, and asking HR to find the same PDF a second time
+     * on the day they hire is how staff records end up without one.
+     */
+    const resume =
+      uploadedAs(req, "resume") ||
+      // Copied rather than shared: the candidate row is kept after the hire,
+      // so two records pointing at one file is a delete away from a broken one
+      (candidate.resume?.storedName ? copyStoredDocument(candidate.resume) : null);
     const address = String(req.body.address || candidate.address || "").trim();
 
     const user = await User.create({

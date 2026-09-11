@@ -3,18 +3,15 @@ import { Link } from "react-router-dom";
 import {
   CalendarOff,
   CalendarCheck,
-  IdCard,
   UserPlus,
   UsersRound,
   ArrowRight,
 } from "lucide-react";
 
 import adminApi from "../../adminApi";
-import usePermissions from "../../hooks/usePermissions";
 import {
   Alert,
   Badge,
-  Button,
   Card,
   CardHeader,
   EmptyState,
@@ -41,10 +38,14 @@ import {
  *
  * The layout answers a complaint the screenshot made obvious: on a quiet day
  * this page was four bordered boxes of centred nothing, which reads as a page
- * that failed to load. Two things fixed it. The panels that are usually empty
- * now say so on one line and shrink to fit, and the breakdowns that are always
- * short sit in a narrow column beside the lists rather than each taking half
- * the screen. Nothing was removed; it stopped being spread over three screens.
+ * that failed to load. The panels that are usually empty now say so on one
+ * line and shrink to fit, and the page reads as three bands down the screen —
+ * the counts, then the two daily lists, then the two breakdowns side by side —
+ * rather than as a tall column of short panels hanging beside a taller one.
+ *
+ * Adding an HR login is not done from here. It is one of the kinds of person
+ * Team Accounts asks about (/admin/team?type=hr), which is the same screen
+ * this page used to send people to under a heading of its own.
  */
 
 const Stat = ({ icon: Icon, label, value, hint, tone = "blue", to }) => {
@@ -114,7 +115,6 @@ function More({ to, children }) {
 }
 
 export default function HrOverview() {
-  const { isFullAdmin } = usePermissions();
   const now = new Date();
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
 
@@ -164,16 +164,6 @@ export default function HrOverview() {
   return (
     <div>
       <PageHeader title="HR Overview" subtitle="Who works here, who is joining, and who is away">
-        {/* Only an administrator may create a department login — the route
-            behind this refuses everybody else, so it is not offered to them */}
-        {isFullAdmin && (
-          <Link to="/admin/hr/accounts">
-            <Button variant="outline">
-              <IdCard size={15} />
-              HR Accounts
-            </Button>
-          </Link>
-        )}
         <Select
           value={period.month}
           onChange={(e) => changePeriod({ month: Number(e.target.value) })}
@@ -225,163 +215,163 @@ export default function HrOverview() {
       </div>
 
       {/**
-       * Two columns of unequal weight, and items-start on both.
+       * Two full-width bands, and items-start on both.
        *
-       * The left holds what changes daily and is worth reading in full; the
-       * right holds the two breakdowns, which are five short lines each and
-       * were being given half the screen to say so. A grid row stretches its
-       * children to match the tallest, so items-start is what lets a one-line
-       * panel be one line high instead of drawing its border down the side of
-       * a taller neighbour with nothing inside it.
+       * The first holds what changes daily and is worth reading in full; the
+       * second holds the two breakdowns, which used to sit stacked in a narrow
+       * column beside those lists. Side by side on a line of their own they get
+       * the width their bars want without taking a third of the page away from
+       * the lists. A grid row stretches its children to match the tallest, so
+       * items-start is what lets a one-line panel be one line high instead of
+       * drawing its border down the side of a taller neighbour with nothing
+       * inside it.
        */}
-      <div className="grid items-start gap-3 xl:grid-cols-3">
-        <div className="grid items-start gap-3 sm:grid-cols-2 xl:col-span-2">
-          {/* ---------------------------------------------- away today */}
-          <Card>
-            <CardHeader
-              title="Away today"
-              subtitle={
-                awayToday.length
-                  ? `${awayToday.length} on approved leave`
-                  : "Approved leave covering today"
-              }
-              action={<More to="/admin/hr/leave">All leave</More>}
+      <div className="mb-3 grid items-start gap-3 lg:grid-cols-2">
+        {/* ---------------------------------------------- away today */}
+        <Card>
+          <CardHeader
+            title="Away today"
+            subtitle={
+              awayToday.length
+                ? `${awayToday.length} on approved leave`
+                : "Approved leave covering today"
+            }
+            action={<More to="/admin/hr/leave">All leave</More>}
+          />
+          {awayToday.length ? (
+            <ul className="divide-y divide-slate-100">
+              {awayToday.map((row) => (
+                <li key={row._id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-900">
+                      {row.employee?.name || "Someone"}
+                    </p>
+                    <p className="truncate text-xs text-slate-400">
+                      {row.employee?.designation || row.employee?.department || "—"}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <Badge value={row.type}>{leaveTypeLabel(row.type)}</Badge>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {dateRange(row.fromDate, row.toDate)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState
+              compact
+              icon={CalendarCheck}
+              title="Everybody is in"
+              message="No approved leave covers today."
             />
-            {awayToday.length ? (
-              <ul className="divide-y divide-slate-100">
-                {awayToday.map((row) => (
-                  <li key={row._id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-900">
-                        {row.employee?.name || "Someone"}
-                      </p>
-                      <p className="truncate text-xs text-slate-400">
-                        {row.employee?.designation || row.employee?.department || "—"}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <Badge value={row.type}>{leaveTypeLabel(row.type)}</Badge>
-                      <p className="mt-1 text-[11px] text-slate-400">
-                        {dateRange(row.fromDate, row.toDate)}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState
-                compact
-                icon={CalendarCheck}
-                title="Everybody is in"
-                message="No approved leave covers today."
-              />
-            )}
-          </Card>
+          )}
+        </Card>
 
-          {/* -------------------------------------- interviews coming up */}
-          <Card>
-            <CardHeader
-              title="Interviews coming up"
-              subtitle={
-                interviews.length
-                  ? `${interviews.length} scheduled, soonest first`
-                  : "Scheduled rounds, soonest first"
-              }
-              action={<More to="/admin/hr/recruitment">Recruitment</More>}
+        {/* -------------------------------------- interviews coming up */}
+        <Card>
+          <CardHeader
+            title="Interviews coming up"
+            subtitle={
+              interviews.length
+                ? `${interviews.length} scheduled, soonest first`
+                : "Scheduled rounds, soonest first"
+            }
+            action={<More to="/admin/hr/recruitment">Recruitment</More>}
+          />
+          {interviews.length ? (
+            <ul className="divide-y divide-slate-100">
+              {interviews.map((row, index) => (
+                <li
+                  key={`${row.candidateId}-${row.round}-${index}`}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-900">{row.candidate}</p>
+                    <p className="truncate text-xs text-slate-400">
+                      {row.round}
+                      {row.position ? ` · ${row.position}` : ""}
+                      {row.interviewerName ? ` · ${row.interviewerName}` : ""}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-xs text-slate-500">{shortDate(row.scheduledAt)}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState
+              compact
+              icon={UserPlus}
+              title="Nothing scheduled"
+              message="Rounds you schedule on a candidate show up here."
             />
-            {interviews.length ? (
-              <ul className="divide-y divide-slate-100">
-                {interviews.map((row, index) => (
-                  <li
-                    key={`${row.candidateId}-${row.round}-${index}`}
-                    className="flex items-center justify-between gap-3 px-4 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-900">{row.candidate}</p>
-                      <p className="truncate text-xs text-slate-400">
-                        {row.round}
-                        {row.position ? ` · ${row.position}` : ""}
-                        {row.interviewerName ? ` · ${row.interviewerName}` : ""}
-                      </p>
-                    </div>
-                    <p className="shrink-0 text-xs text-slate-500">{shortDate(row.scheduledAt)}</p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState
-                compact
-                icon={UserPlus}
-                title="Nothing scheduled"
-                message="Rounds you schedule on a candidate show up here."
-              />
-            )}
-          </Card>
-        </div>
+          )}
+        </Card>
+      </div>
 
-        {/* ------------------------------------- the two breakdowns */}
-        <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-1">
-          <Card>
-            <CardHeader
-              title="All employees by role"
-              subtitle={`${roleTotal} on the payroll`}
-              action={<More to="/admin/employees">Everybody</More>}
-            />
-            {roleRows.length ? (
-              <ul className="pb-1.5">
-                {roleRows.map(([role, count]) => (
-                  <ShareRow
-                    key={role}
-                    label={role.replace(/_/g, " ")}
-                    count={count}
-                    total={roleTotal}
-                  />
-                ))}
-              </ul>
-            ) : (
-              <EmptyState compact icon={UsersRound} title="Nobody on record yet" />
-            )}
-          </Card>
+      {/* ------------------------------------- the two breakdowns */}
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="All employees by role"
+            subtitle={`${roleTotal} on the payroll`}
+            action={<More to="/admin/employees">Everybody</More>}
+          />
+          {roleRows.length ? (
+            <ul className="pb-1.5">
+              {roleRows.map(([role, count]) => (
+                <ShareRow
+                  key={role}
+                  label={role.replace(/_/g, " ")}
+                  count={count}
+                  total={roleTotal}
+                />
+              ))}
+            </ul>
+          ) : (
+            <EmptyState compact icon={UsersRound} title="Nobody on record yet" />
+          )}
+        </Card>
 
-          <Card>
-            <CardHeader
-              title="Hiring pipeline"
-              subtitle={
-                pipelineTotal
-                  ? `${pipelineTotal} candidate${pipelineTotal === 1 ? "" : "s"} in play`
-                  : "Candidates by stage"
-              }
-              action={<More to="/admin/hr/recruitment">Open</More>}
+        <Card>
+          <CardHeader
+            title="Hiring pipeline"
+            subtitle={
+              pipelineTotal
+                ? `${pipelineTotal} candidate${pipelineTotal === 1 ? "" : "s"} in play`
+                : "Candidates by stage"
+            }
+            action={<More to="/admin/hr/recruitment">Open</More>}
+          />
+          {pipeline.length ? (
+            <ul className="pb-1.5">
+              {pipeline.map(([stage, count]) => (
+                <li key={stage} className="px-4 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <Badge value={stage}>{stageLabel(stage)}</Badge>
+                    <span className="shrink-0 text-sm font-semibold text-slate-900">{count}</span>
+                  </div>
+                  <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-violet-500"
+                      style={{
+                        width: `${pipelineTotal ? Math.round((count / pipelineTotal) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState
+              compact
+              icon={UserPlus}
+              title="No candidates yet"
+              message="Add one from Recruitment to start the pipeline."
             />
-            {pipeline.length ? (
-              <ul className="pb-1.5">
-                {pipeline.map(([stage, count]) => (
-                  <li key={stage} className="px-4 py-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <Badge value={stage}>{stageLabel(stage)}</Badge>
-                      <span className="shrink-0 text-sm font-semibold text-slate-900">{count}</span>
-                    </div>
-                    <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className="h-full rounded-full bg-violet-500"
-                        style={{
-                          width: `${pipelineTotal ? Math.round((count / pipelineTotal) * 100) : 0}%`,
-                        }}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState
-                compact
-                icon={UserPlus}
-                title="No candidates yet"
-                message="Add one from Recruitment to start the pipeline."
-              />
-            )}
-          </Card>
-        </div>
+          )}
+        </Card>
       </div>
     </div>
   );

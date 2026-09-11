@@ -387,7 +387,6 @@ export const updateIssue = async (req, res) => {
         return res.status(400).json({ message: "Only your operations manager can close an issue" });
       }
       existing.status = status;
-      if (status === "resolved") existing.resolvedAt = new Date();
     }
 
     await existing.save();

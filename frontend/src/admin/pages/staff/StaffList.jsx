@@ -436,6 +436,11 @@ export default function StaffList({
         loading={detailLoading}
         api={adminApi}
         basePath="/admin"
+        /**
+         * Admin serves documents under the staff type rather than from one
+         * shared route, which is why the resource has to travel with it.
+         */
+        docPath={(id, field) => `/admin/${resource}/${id}/documents/${field}`}
         chatPath={
           /**
            * Only employees have a chat room in the admin panel, and the room

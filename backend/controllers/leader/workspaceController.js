@@ -235,7 +235,7 @@ export const updateIssue = async (req, res) => {
     }
     if (payload.assignedTo === "") payload.assignedTo = null;
 
-    if (["resolved", "closed"].includes(payload.status)) payload.resolvedAt = new Date();
+    // resolvedAt is the model's job now — see models/Issue.js
 
     Object.assign(existing, payload);
     await existing.save();

@@ -166,6 +166,34 @@ export const uploadStaffDocuments = (req, res, next) =>
     return res.status(400).json({ message: "Could not read the uploaded file" });
   });
 
+/**
+ * One CV on a candidate, accepted under the same rules as any staff document.
+ *
+ * Its own middleware rather than uploadStaffDocuments, because a candidate has
+ * exactly one file and offering the other seven field names on a recruitment
+ * form would invite somebody to attach an Aadhaar to an applicant this company
+ * has not hired and may never meet.
+ *
+ * Optional, always: an application that arrives as a phone call is still an
+ * application, and refusing to record it without a PDF loses the candidate.
+ */
+export const uploadCandidateResume = (req, res, next) =>
+  docUpload.fields([{ name: "resume", maxCount: 1 }])(req, res, (err) => {
+    if (!err) return next();
+
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res
+        .status(400)
+        .json({ message: `That file is too large — the limit is ${MAX_DOC_BYTES / 1024 / 1024} MB` });
+    }
+    if (err.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(400).json({ message: "Upload a photo or a PDF (JPG, PNG or PDF)" });
+    }
+
+    console.error("candidate resume upload error:", err.message);
+    return res.status(400).json({ message: "Could not read the uploaded file" });
+  });
+
 /** Absolute path of a stored file, or null if the name is not one of ours. */
 export const storedPath = (storedName) => {
   if (!storedName) return null;
@@ -194,6 +222,41 @@ export const copyStoredFile = (storedName) => {
 };
 
 /** Best-effort cleanup. A missing file must never fail the request. */
+/**
+ * A second copy of a stored file, under a name of its own.
+ *
+ * Used when one record's document becomes another's — a candidate's CV
+ * becoming the CV on the staff record they turn into. The alternative is to
+ * let both rows point at the same bytes, and then deleting either one unlinks
+ * a file the other still shows: the candidate is kept after the hire on
+ * purpose, so that day would come.
+ *
+ * Returns a fresh descriptor, or null if the original is not readable — a CV
+ * that cannot be copied must not stop somebody being hired.
+ */
+export const copyStoredDocument = (file) => {
+  const source = storedPath(file?.storedName);
+  if (!source) return null;
+
+  const ext = path.extname(file.storedName || "").toLowerCase();
+  const storedName = `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${ext}`;
+
+  try {
+    fs.copyFileSync(source, path.join(UPLOAD_DIR, storedName));
+  } catch (err) {
+    console.error("copyStoredFile error:", err.message);
+    return null;
+  }
+
+  return {
+    storedName,
+    originalName: file.originalName || "",
+    mimeType: file.mimeType || "",
+    size: file.size || 0,
+    uploadedAt: new Date(),
+  };
+};
+
 export const removeStoredFile = (storedName) => {
   const target = storedPath(storedName);
   if (!target) return;

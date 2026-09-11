@@ -75,6 +75,23 @@ const leadSchema = new mongoose.Schema(
 
     owner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
+    /**
+     * Who is chasing this lead, as somebody typed it.
+     *
+     * Plain text, and deliberately not the same thing as `owner` above. The
+     * admin form asks for a name rather than picking an account, because the
+     * person chasing a lead is not always somebody with a login — a partner,
+     * a referrer, a colleague who has not been given one yet.
+     *
+     * What that costs is worth being clear about: a name here gives nobody
+     * sight of the lead. Sales scoping, the "assigned to you" notification,
+     * the owner breakdown on the sales dashboard and the owner carried into a
+     * converted client all read `owner`, and none of them can read this. A
+     * lead that must actually reach a salesperson is assigned from the sales
+     * panel, which still picks a real account.
+     */
+    ownerName: { type: String, trim: true, default: "" },
+
     notes: { type: [noteSchema], default: [] },
 
     /* --------------------------------------------------------- the outcome */

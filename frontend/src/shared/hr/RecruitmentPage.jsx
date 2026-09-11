@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import {
   CalendarPlus,
   ChevronsRight,
+  Download,
+  Eye,
   FileText,
   Paperclip,
   Pencil,
@@ -13,6 +15,8 @@ import {
 } from "lucide-react";
 
 import DataTable from "../components/DataTable";
+
+import { fileSize, money } from "../format";
 import Toolbar from "../components/Toolbar";
 import Modal, { ConfirmDialog } from "../components/Modal";
 import {
@@ -53,15 +57,15 @@ const BLANK = {
   phone: "",
   address: "",
   position: "",
-  department: "",
   experience: "",
+  noticePeriod: "",
   skills: "",
   source: "other",
   sourceDetail: "",
   stage: "applied",
+  currentSalary: 0,
   expectedSalary: 0,
   hireAs: "employee",
-  owner: "",
   jobOpening: "",
   notes: "",
 };
@@ -108,6 +112,252 @@ const POSITIONS = [
   "Accountant",
 ];
 
+/**
+ * The CV on an application, in its three honest states: nothing on file, a
+ * file picked in this browser that has not been saved, and one the server
+ * already holds.
+ *
+ * The difference between the last two is the point. An edit form that drew a
+ * stored CV and a newly chosen one the same way would leave somebody unsure
+ * whether pressing Save was going to change anything.
+ *
+ * Stored CVs are fetched through the panel's own client rather than linked to,
+ * because nothing under uploads/ is served without a token — a plain <a href>
+ * would open a 401.
+ */
+function CvField({ label, hint, file, stored, onPick, api, path, readOnly = false }) {
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    const { data } = await api.get(path, { responseType: "blob" });
+    return URL.createObjectURL(data);
+  };
+
+  const view = async () => {
+    setBusy("view");
+    setError("");
+    try {
+      const url = await load();
+      window.open(url, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setError("Could not open that CV");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const download = async () => {
+    setBusy("download");
+    setError("");
+    try {
+      const url = await load();
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = stored?.originalName || "cv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch {
+      setError("Could not download that CV");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const picker = readOnly ? null : (
+    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2.5 text-sm text-slate-500 transition-colors hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700">
+      <Paperclip size={15} />
+      {stored?.storedName ? "Replace it" : "Choose a file"}
+      <input
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png,.webp"
+        className="hidden"
+        onChange={(e) => onPick(e.target.files?.[0] || null)}
+      />
+    </label>
+  );
+
+  return (
+    <Field label={label} hint={hint}>
+      {file ? (
+        <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/40 px-3 py-2">
+          <Paperclip size={15} className="shrink-0 text-slate-400" />
+          <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{file.name}</span>
+          <span className="shrink-0 text-xs text-slate-400">
+            {fileSize(file.size)} · not saved yet
+          </span>
+          <button
+            type="button"
+            onClick={() => onPick(null)}
+            className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+            aria-label="Remove the CV"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ) : stored?.storedName ? (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <FileText size={15} className="shrink-0 text-slate-400" />
+            <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
+              {stored.originalName || "On file"}
+            </span>
+            <span className="shrink-0 text-xs text-slate-400">{fileSize(stored.size)}</span>
+            {/* Only what the server already holds can be opened */}
+            {path && (
+              <>
+                <button
+                  type="button"
+                  onClick={view}
+                  disabled={Boolean(busy)}
+                  title="Open in a new tab"
+                  className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-200 hover:text-blue-600 disabled:opacity-50"
+                >
+                  <Eye size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={download}
+                  disabled={Boolean(busy)}
+                  title="Download"
+                  className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-200 hover:text-blue-600 disabled:opacity-50"
+                >
+                  <Download size={14} />
+                </button>
+              </>
+            )}
+          </div>
+          {error ? <p className="text-[11px] text-red-600">{error}</p> : picker}
+
+        </div>
+      ) : (
+        picker || <p className="text-sm text-slate-400">Nothing on file</p>
+      )}
+    </Field>
+  );
+}
+
+/** One labelled fact in the detail drawer. */
+function Row({ label, value }) {
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-0.5 break-words text-sm text-slate-800">{value || "—"}</p>
+    </div>
+  );
+}
+
+/**
+ * One candidate's whole application, read-only.
+ *
+ * Reading a record used to mean opening the edit form, which turns looking
+ * somebody up into an accidental write — and left the CV, the rounds and the
+ * dates the pipeline stamps with nowhere to be seen at all. The pencil is
+ * still there for changing things; this is for looking.
+ */
+function CandidateDetail({ open, onClose, row, api, basePath, money }) {
+  if (!row) return null;
+
+  const dates = [
+    ["Applied", row.createdAt],
+    ["Shortlisted", row.shortlistedAt],
+    ["Selected", row.selectedAt],
+    ["Hired", row.hiredAt],
+    ["Not taken forward", row.rejectedAt],
+  ].filter(([, when]) => when);
+
+  return (
+    <Modal open={open} onClose={onClose} title={row.name} subtitle={row.position || "Candidate"} size="lg">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge value={row.stage}>{stageLabel(row.stage)}</Badge>
+          {row.hiredUser && <Badge value="hired">Account created</Badge>}
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
+          <Row label="Email" value={row.email} />
+          <Row label="Phone" value={row.phone} />
+          <div className="sm:col-span-2">
+            <Row label="Address" value={row.address} />
+          </div>
+          <Row label="Experience" value={row.experience} />
+          <Row label="Notice period" value={row.noticePeriod} />
+          <Row label="Current salary" value={row.currentSalary ? money(row.currentSalary) : ""} />
+          <Row label="Expected salary" value={row.expectedSalary ? money(row.expectedSalary) : ""} />
+          <div className="sm:col-span-2">
+            <Row label="Skills" value={(row.skills || []).join(", ")} />
+          </div>
+          <Row label="Source" value={sourceLabel(row.source)} />
+          <Row label="Source detail" value={row.sourceDetail} />
+          <Row label="Hire as" value={String(row.hireAs || "").replace(/_/g, " ")} />
+          <Row label="Owner" value={row.owner?.name} />
+        </div>
+
+        {/* The CV, openable rather than merely reported as present */}
+        <CvField
+          label="CV / Resume"
+          stored={row.resume}
+          file={null}
+          onPick={() => {}}
+          api={api}
+          path={`${basePath}/candidates/${row._id}/resume`}
+          readOnly
+        />
+
+        {row.interviews?.length > 0 && (
+          <div>
+            <p className="mb-2 text-sm font-semibold text-slate-900">
+              Rounds ({row.interviews.length})
+            </p>
+            <div className="space-y-1.5">
+              {row.interviews.map((round) => (
+                <div
+                  key={round._id}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-slate-800">{round.round || "Round"}</p>
+                    <Badge value={round.outcome}>{String(round.outcome || "").replace(/_/g, " ")}</Badge>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-slate-400">
+                    {[shortDate(round.scheduledAt), round.mode, round.interviewerName]
+                      .filter(Boolean)
+                      .join(" · ") || "Not scheduled"}
+                  </p>
+                  {round.feedback && (
+                    <p className="mt-1 text-xs text-slate-600">{round.feedback}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {row.notes && (
+          <div>
+            <p className="mb-1 text-sm font-semibold text-slate-900">Notes</p>
+            <p className="whitespace-pre-wrap text-sm text-slate-700">{row.notes}</p>
+          </div>
+        )}
+
+        {dates.length > 0 && (
+          <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-3">
+            {dates.map(([label, when]) => (
+              <div key={label}>
+                <p className="text-[11px] uppercase tracking-wide text-slate-400">{label}</p>
+                <p className="text-sm text-slate-800">{shortDate(when)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 export default function RecruitmentPage({
   api,
   basePath,
@@ -133,8 +383,12 @@ export default function RecruitmentPage({
   const [stage, setStage] = useState("");
   const [source, setSource] = useState("");
 
+  /** Whose application is open for reading. Looking is not editing. */
+  const [viewing, setViewing] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(BLANK);
+  /** The CV picked in this browser, before it has been saved anywhere. */
+  const [cv, setCv] = useState(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -201,6 +455,7 @@ export default function RecruitmentPage({
   const openAdd = () => {
     setEditing("new");
     setForm(BLANK);
+    setCv(null);
     setFormError("");
   };
 
@@ -212,18 +467,21 @@ export default function RecruitmentPage({
       phone: row.phone || "",
       address: row.address || "",
       position: row.position || "",
-      department: row.department || "",
       experience: row.experience || "",
+      noticePeriod: row.noticePeriod || "",
       skills: (row.skills || []).join(", "),
       source: row.source || "other",
       sourceDetail: row.sourceDetail || "",
       stage: row.stage || "applied",
+      currentSalary: row.currentSalary ?? 0,
       expectedSalary: row.expectedSalary ?? 0,
       hireAs: row.hireAs || "employee",
-      owner: row.owner?._id || "",
       jobOpening: row.jobOpening?._id || row.jobOpening || "",
       notes: row.notes || "",
     });
+    // Whatever is already on the record is shown by the upload box itself; a
+    // pick only exists once somebody makes one here.
+    setCv(null);
     setFormError("");
   };
 
@@ -244,16 +502,39 @@ export default function RecruitmentPage({
     }
   };
 
+  /**
+   * The CV already on the record being edited, read off the loaded row rather
+   * than fetched again — the list has it, and a second request to learn
+   * something already in memory would only flash a spinner.
+   */
+  const storedCv = rows.find((row) => row._id === editing)?.resume || null;
+
   const save = async (e) => {
     e.preventDefault();
     setSaving(true);
     setFormError("");
 
     try {
-      if (editing === "new") await api.post(`${basePath}/candidates`, form);
-      else await api.put(`${basePath}/candidates/${editing}`, form);
+      /**
+       * Multipart only when there is a CV to carry.
+       *
+       * A FormData turns every value into a string, which is the right answer
+       * for a file and the wrong one for "no job opening" — so a save without
+       * a CV goes as plain JSON exactly as it always did, and only the one
+       * that has a file pays the cost.
+       */
+      let body = form;
+      if (cv) {
+        body = new FormData();
+        Object.entries(form).forEach(([key, value]) => body.append(key, value ?? ""));
+        body.append("resume", cv);
+      }
+
+      if (editing === "new") await api.post(`${basePath}/candidates`, body);
+      else await api.put(`${basePath}/candidates/${editing}`, body);
 
       setEditing(null);
+      setCv(null);
       reload();
     } catch (err) {
       setFormError(err.response?.data?.message || "Could not save this candidate");
@@ -450,6 +731,18 @@ export default function RecruitmentPage({
               <UserCheck size={15} />
             </button>
           )}
+          {/* Reading a row somebody can already see needs no permission of
+              its own — and it is the only action here that changes nothing */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setViewing(row);
+            }}
+            title="View the application"
+            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          >
+            <Eye size={15} />
+          </button>
           {can("recruitment", "edit") && (
             <button
               onClick={(e) => {
@@ -528,11 +821,28 @@ export default function RecruitmentPage({
           pages={pages}
           total={total}
           onPageChange={setPage}
-          onRowClick={can("recruitment", "edit") ? openEdit : undefined}
+          // Opening a row reads it. Editing is the pencil, deliberately: a
+          // click that lands on a form is how a look becomes a change.
+          onRowClick={setViewing}
           emptyTitle="No candidates yet"
           emptyMessage="Add one to start the pipeline."
         />
       </Card>
+
+      {/* ---------------------------------------------------- the record */}
+      <CandidateDetail
+        open={Boolean(viewing)}
+        onClose={() => setViewing(null)}
+        /**
+         * Read off the loaded list rather than held as a snapshot, so a row
+         * edited or moved along while the drawer is open reads correctly
+         * instead of showing what it said when it was clicked.
+         */
+        row={rows.find((r) => r._id === viewing?._id) || viewing}
+        api={api}
+        basePath={basePath}
+        money={money}
+      />
 
       {/* ------------------------------------------------------ add / edit */}
       <Modal
@@ -603,20 +913,37 @@ export default function RecruitmentPage({
             />
           </Field>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Department">
-              <SelectOrOther
-                options={DEPARTMENTS}
-                placeholder="Select department"
-                value={form.department}
-                onChange={(e) => setForm({ ...form, department: e.target.value })}
-              />
-            </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Experience">
               <Input
                 value={form.experience}
                 onChange={(e) => setForm({ ...form, experience: e.target.value })}
                 placeholder="2 years"
+              />
+            </Field>
+            {/**
+              * How soon they could start. Free text, because "serving notice,
+              * last day the 14th" is the useful answer and a number of days
+              * throws away the half of it somebody needs.
+              */}
+            <Field label="Notice period" hint="How soon they could start">
+              <Input
+                value={form.noticePeriod}
+                onChange={(e) => setForm({ ...form, noticePeriod: e.target.value })}
+                placeholder="Immediate, 30 days, 2 months"
+              />
+            </Field>
+          </div>
+
+          {/* Expected means little on its own — what they are on now is the
+              other half of every salary conversation that follows */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Current salary" hint="What they are on today">
+              <Input
+                type="number"
+                min="0"
+                value={form.currentSalary}
+                onChange={(e) => setForm({ ...form, currentSalary: Number(e.target.value) })}
               />
             </Field>
             <Field label="Expected salary">
@@ -662,23 +989,13 @@ export default function RecruitmentPage({
             </Field>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Hire as" hint="What their account is created as">
-              <Select
-                value={form.hireAs}
-                onChange={(e) => setForm({ ...form, hireAs: e.target.value })}
-                options={hireRoleOptions}
-              />
-            </Field>
-            <Field label="Owner" hint="Who on HR is carrying this one">
-              <Select
-                value={form.owner}
-                onChange={(e) => setForm({ ...form, owner: e.target.value })}
-                options={staffOptions}
-                placeholder="Nobody yet"
-              />
-            </Field>
-          </div>
+          <Field label="Hire as" hint="What their account is created as">
+            <Select
+              value={form.hireAs}
+              onChange={(e) => setForm({ ...form, hireAs: e.target.value })}
+              options={hireRoleOptions}
+            />
+          </Field>
 
           {/* Only where there are vacancies to attach to — the admin panel has
               no job openings behind it, so the field is not offered there */}
@@ -695,6 +1012,22 @@ export default function RecruitmentPage({
               />
             </Field>
           )}
+
+          {/**
+            * The CV, asked for when the application is recorded rather than at
+            * the hire. The hire is one candidate in twenty; the other nineteen
+            * are shortlisted or turned down by reading this, and until it could
+            * live on the candidate there was nowhere to put it.
+            */}
+          <CvField
+            label="CV / Resume"
+            hint="PDF or a photo, up to 8 MB — optional"
+            file={cv}
+            stored={editing !== "new" ? storedCv : null}
+            onPick={setCv}
+            api={api}
+            path={editing !== "new" ? `${basePath}/candidates/${editing}/resume` : ""}
+          />
 
           <Field label="Notes">
             <Textarea
@@ -888,38 +1221,19 @@ export default function RecruitmentPage({
             * they tidy it up; this is filed with their identity papers and is
             * still there in three years.
             */}
-          <Field label="CV / Resume" hint="PDF or a photo, up to 8 MB — optional">
-            {resume ? (
-              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <FileText size={15} className="shrink-0 text-slate-400" />
-                <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
-                  {resume.name}
-                </span>
-                <span className="shrink-0 text-xs text-slate-400">
-                  {Math.max(1, Math.round(resume.size / 1024))} KB
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setResume(null)}
-                  className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
-                  aria-label="Remove the CV"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2.5 text-sm text-slate-500 transition-colors hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700">
-                <Paperclip size={15} />
-                Choose a file
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,.webp"
-                  className="hidden"
-                  onChange={(e) => setResume(e.target.files?.[0] || null)}
-                />
-              </label>
-            )}
-          </Field>
+          <CvField
+            label="CV / Resume"
+            hint={
+              hiring?.resume?.storedName
+                ? "The one from their application carries across unless you pick another"
+                : "PDF or a photo, up to 8 MB — optional"
+            }
+            file={resume}
+            stored={hiring?.resume}
+            onPick={setResume}
+            api={api}
+            path={hiring ? `${basePath}/candidates/${hiring._id}/resume` : ""}
+          />
         </form>
       </Modal>
 

@@ -10,12 +10,14 @@ import {
   CalendarOff,
   CheckCircle2,
   Clock,
+  Download,
   Eye,
   EyeOff,
   FileText,
   FolderKanban,
   Hourglass,
   IdCard,
+  Image as ImageIcon,
   KeyRound,
   Landmark,
   Mail,
@@ -31,7 +33,7 @@ import {
 import Modal from "../components/Modal";
 import SalaryTab from "./SalaryTab";
 import { Badge, Loader } from "../components/ui";
-import { initialsOf, prettify } from "../format";
+import { fileSize, initialsOf, prettify } from "../format";
 
 /**
  * One person's whole record, on one screen.
@@ -245,6 +247,154 @@ function Row({ icon: Icon, label, value }) {
         {label}
       </p>
       <p className="mt-0.5 break-words text-sm text-slate-800">{value || "—"}</p>
+    </div>
+  );
+}
+
+/**
+ * One stored scan, with a way to actually open it.
+ *
+ * The Documents tab used to name the files on file and stop there — a line
+ * reading "Aadhaar front, PAN front" said the scan existed but not what was on
+ * it, so anybody checking a card against the record had to open the edit form
+ * to see the picture, which turns a read into an accidental write.
+ *
+ * Nothing under uploads/ is reachable without a token, so the file is fetched
+ * through the panel's own client and handed to the browser as an object URL —
+ * a plain <a href> would open a 401. This is the same reason DocumentUpload
+ * does it this way on the form side.
+ */
+function ScanRow({ label, field, file, api, docPath, recordId }) {
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+
+  /**
+   * A panel that passed no docPath has no route that serves this file. The
+   * row still names the document — knowing it is on file is worth something —
+   * but it does not offer a button that could only 404.
+   */
+  const openable = Boolean(api && docPath && recordId);
+
+  const load = async () => {
+    const { data } = await api.get(docPath(recordId, field), { responseType: "blob" });
+    return URL.createObjectURL(data);
+  };
+
+  const view = async () => {
+    setBusy("view");
+    setError("");
+    try {
+      const url = await load();
+      window.open(url, "_blank", "noopener");
+      // Long enough for the new tab to have loaded it; that tab holds its own
+      // reference, so revoking here does not close what is already open.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      setError("Could not open that document");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const download = async () => {
+    setBusy("download");
+    setError("");
+    try {
+      const url = await load();
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = file.originalName || field;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch {
+      setError("Could not download that document");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const isImage =
+    String(file.mimeType || "").startsWith("image/") ||
+    /\.(jpe?g|png|webp|heic)$/i.test(file.originalName || "");
+  const Icon = isImage ? ImageIcon : FileText;
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-50 text-slate-400 ring-1 ring-slate-200">
+        <Icon size={15} />
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium text-slate-800">{label}</p>
+        <p className="truncate text-[11px] text-slate-400">
+          {[file.originalName, fileSize(file.size)].filter(Boolean).join(" · ") || "On file"}
+        </p>
+        {error && <p className="text-[11px] text-red-600">{error}</p>}
+      </div>
+
+      {openable && (
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={view}
+            disabled={Boolean(busy)}
+            title="Open in a new tab"
+            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50"
+          >
+            <Eye size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={download}
+            disabled={Boolean(busy)}
+            title="Download"
+            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50"
+          >
+            <Download size={14} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The scans filed against one part of a record — the identity papers, or the
+ * three letters a previous employer hands over.
+ *
+ * Absent documents are left out rather than listed as missing: the count above
+ * already says how much of the paperwork has arrived, and a list of five
+ * "not uploaded" rows buries the two that are.
+ */
+function ScanList({ label, items, api, docPath, recordId, empty = "None uploaded" }) {
+  const present = items.filter(([, , file]) => file?.storedName);
+
+  return (
+    <div>
+      <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-slate-400">
+        <FileText size={12} />
+        {label}
+      </p>
+
+      {present.length ? (
+        <div className="mt-1.5 space-y-1.5">
+          {present.map(([field, itemLabel, file]) => (
+            <ScanRow
+              key={field}
+              field={field}
+              label={itemLabel}
+              file={file}
+              api={api}
+              docPath={docPath}
+              recordId={recordId}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-0.5 text-sm text-slate-800">{empty}</p>
+      )}
     </div>
   );
 }
@@ -544,6 +694,16 @@ export default function StaffDetail({
   chatPath,
   api,
   basePath,
+  /**
+   * Where this panel serves a stored scan from, as (recordId, field) => path.
+   *
+   * The two panels do not agree on it — admin files documents under the
+   * staff type (/admin/employees/:id/documents/:field) and HR under one
+   * shared route (/hr/documents/:id/:field) — so the caller names it rather
+   * than this component guessing from basePath. A caller that passes none
+   * still gets the documents listed, just without the buttons to open them.
+   */
+  docPath,
   canEditSalary = true,
 }) {
   const [tab, setTab] = useState("overview");
@@ -864,22 +1024,19 @@ export default function StaffDetail({
                 value={person.documents?.panNumber || "Not on file"}
               />
               <div className="sm:col-span-2">
-                <Row
-                  icon={FileText}
+                <ScanList
                   label="Scans on file"
-                  value={
-                    [
-                      ["aadhaarFront", "Aadhaar front"],
-                      ["aadhaarBack", "Aadhaar back"],
-                      ["panFront", "PAN front"],
-                      ["panBack", "PAN back"],
-                      // Filed with the identity papers — see the model
-                      ["resume", "CV"],
-                    ]
-                      .filter(([key]) => person.documents?.[key]?.storedName)
-                      .map(([, label]) => label)
-                      .join(", ") || "None uploaded"
-                  }
+                  api={api}
+                  docPath={docPath}
+                  recordId={person._id}
+                  items={[
+                    ["aadhaarFront", "Aadhaar — front"],
+                    ["aadhaarBack", "Aadhaar — back"],
+                    ["panFront", "PAN — front"],
+                    ["panBack", "PAN — back"],
+                    // Filed with the identity papers — see the model
+                    ["resume", "CV"],
+                  ].map(([key, label]) => [key, label, person.documents?.[key]])}
                 />
               </div>
             </Grid>
@@ -916,26 +1073,39 @@ export default function StaffDetail({
                 label="Designation"
                 value={person.previousEmployment?.designation}
               />
+              {/* The model calls these from and to. Reading fromDate/toDate
+                  here left both dates blank however carefully the form had
+                  been filled in. */}
               <Row
                 icon={CalendarDays}
                 label="From"
-                value={fmtDate(person.previousEmployment?.fromDate)}
+                value={fmtDate(person.previousEmployment?.from)}
               />
               <Row
                 icon={CalendarDays}
                 label="To"
-                value={fmtDate(person.previousEmployment?.toDate)}
+                value={fmtDate(person.previousEmployment?.to)}
               />
               <Row
                 icon={Banknote}
                 label="Last salary"
                 value={person.previousEmployment?.lastSalary}
               />
-              <Row
-                icon={FileText}
-                label="Reason for leaving"
-                value={person.previousEmployment?.reasonForLeaving}
-              />
+              <div className="sm:col-span-2">
+                {/* The three letters a previous employer hands over. The form
+                    has always collected them; this tab never showed them. */}
+                <ScanList
+                  label="Letters on file"
+                  api={api}
+                  docPath={docPath}
+                  recordId={person._id}
+                  items={[
+                    ["experienceLetter", "Experience letter"],
+                    ["salarySlip", "Salary slip"],
+                    ["relievingLetter", "Relieving letter"],
+                  ].map(([key, label]) => [key, label, person.previousEmployment?.[key]])}
+                />
+              </div>
             </Grid>
           )}
 
