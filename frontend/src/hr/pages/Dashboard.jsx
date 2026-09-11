@@ -129,7 +129,7 @@ export default function Dashboard() {
       <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           icon={UsersRound}
-          label="Headcount"
+          label="All Candidates"
           value={headcount.active ?? 0}
           hint={`${headcount.total ?? 0} on record · ${headcount.joinedThisMonth ?? 0} joined this month`}
           to="/hr/employees"

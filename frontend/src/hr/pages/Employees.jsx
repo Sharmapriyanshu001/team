@@ -1,28 +1,25 @@
-import { useCallback, useEffect, useState } from "react";
-import { Eye, KeyRound, Mail, Pencil, Phone, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Eye, Mail, Pencil, Phone, Plus, UserRoundCog } from "lucide-react";
 
 import hrApi from "../hrApi";
 import useHrAccess from "../hooks/useHrAccess";
+import useLeaderOptions from "../hooks/useLeaderOptions";
 import Avatar from "../../shared/components/Avatar";
 import DataTable from "../../shared/components/DataTable";
-import Toolbar from "../../shared/components/Toolbar";
 import Modal from "../../shared/components/Modal";
+import Toolbar from "../../shared/components/Toolbar";
 import StaffDetail from "../../shared/staff/StaffDetail";
-import OnboardingFields from "../components/OnboardingFields";
-import { BLANK_PAPERWORK, paperworkProblems } from "../components/onboarding";
 import {
   Alert,
   Badge,
   Button,
   Card,
   Field,
-  Input,
   PageHeader,
   Select,
-  Textarea,
 } from "../../shared/components/ui";
 import { shortDate } from "../../shared/hr/constants";
-import { DEFAULT_PASSWORD } from "../../shared/staffPassword";
 
 /**
  * Who works here.
@@ -36,20 +33,13 @@ import { DEFAULT_PASSWORD } from "../../shared/staffPassword";
  * reversible answer and is an ordinary edit from this screen.
  */
 
-/** A blank hire. The starting password is used unless one is typed. */
-const BLANK = {
-  name: "",
-  email: "",
-  phone: "",
-  designation: "",
-  department: "",
-  status: "active",
-  joiningDate: "",
-  reportsTo: "",
-  address: "",
-  password: "",
-  ...BLANK_PAPERWORK,
-};
+/**
+ * Where hiring and editing happen — the four-step form the admin panel uses,
+ * which is the same component. This screen used to carry a shorter one of its
+ * own in a modal; two forms writing to one endpoint meant one of them was
+ * asking for less than the record holds, and it was this one.
+ */
+const FORM_PATH = "/hr/employees/add";
 
 const ROLE_OPTIONS = [
   { value: "employee", label: "Employee" },
@@ -57,11 +47,6 @@ const ROLE_OPTIONS = [
   { value: "manager", label: "Manager" },
   { value: "sales", label: "Sales" },
   { value: "operations", label: "Operations" },
-];
-
-const STEPS = [
-  { title: "Who they are", blurb: "Their details, and what they sign in with" },
-  { title: "Documents and bank", blurb: "Aadhaar, PAN and where the salary is paid" },
 ];
 
 /**
@@ -112,6 +97,8 @@ export default function Employees({ embedded = false }) {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Bumped when the reporting line is changed from a row — the only write
+  // this screen still does itself
   const [reloadKey, setReloadKey] = useState(0);
 
   const [search, setSearch] = useState("");
@@ -124,29 +111,21 @@ export default function Employees({ embedded = false }) {
   const [details, setDetails] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const [editing, setEditing] = useState(null);
-  const [step, setStep] = useState(0);
-  const [form, setForm] = useState(BLANK);
-  const [files, setFiles] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState("");
-  const [problems, setProblems] = useState({});
-
-  /**
-   * The login, shown once after a hire. The stored password is a one-way hash
-   * and cannot be read back later, so this is the only moment it can be handed
-   * over.
-   */
-  const [credentials, setCredentials] = useState(null);
-
-  /** Who a new employee can be put under. Fetched when the form first opens. */
-  const [leaders, setLeaders] = useState([]);
-
-  const isNew = editing === "new";
   const canCreate = can("employees", "create");
   const canEdit = can("employees", "edit");
 
-  const reload = useCallback(() => setReloadKey((n) => n + 1), []);
+  const navigate = useNavigate();
+
+  /**
+   * Putting somebody under a manager without opening their whole record.
+   *
+   * Moving one person between managers is a one-field decision, and walking
+   * four steps of a hiring form to make it is why reporting lines go stale.
+   * { row, pick } — pick is "" for nobody.
+   */
+  const [assigning, setAssigning] = useState(null);
+  const [assignSaving, setAssignSaving] = useState(false);
+  const leaderOptions = useLeaderOptions();
 
   useEffect(() => {
     let active = true;
@@ -198,190 +177,6 @@ export default function Employees({ embedded = false }) {
     };
   }, [viewing]);
 
-  useEffect(() => {
-    if (editing !== "new" || leaders.length) return undefined;
-
-    let active = true;
-
-    hrApi
-      .get("/hr/employees", {
-        params: { role: "operations_manager", status: "active", limit: 200 },
-      })
-      .then(({ data }) => active && setLeaders(data.items || []))
-      // A reporting line is optional, so failing to offer one is not an error
-      // worth putting in front of somebody filling in a form
-      .catch(() => {});
-
-    return () => {
-      active = false;
-    };
-  }, [editing, leaders.length]);
-
-  /* ------------------------------------------------------------ the form */
-
-  const change = (e) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-
-  /** One field inside one of the two sub-documents. */
-  const changeIn = (section) => (e) =>
-    setForm((prev) => ({
-      ...prev,
-      [section]: { ...prev[section], [e.target.name]: e.target.value },
-    }));
-
-  const pickFile = (name, file) => setFiles((prev) => ({ ...prev, [name]: file }));
-
-  const closeForm = () => {
-    setEditing(null);
-    setCredentials(null);
-    setFiles({});
-    setProblems({});
-    setStep(0);
-  };
-
-  const openAdd = () => {
-    setForm(BLANK);
-    setFiles({});
-    setFormError("");
-    setProblems({});
-    setCredentials(null);
-    setStep(0);
-    setEditing("new");
-  };
-
-  const openEdit = (row) => {
-    setEditing(row._id);
-    setForm({
-      ...BLANK,
-      name: row.name || "",
-      email: row.email || "",
-      phone: row.phone || "",
-      designation: row.designation || "",
-      department: row.department || "",
-      status: row.status || "active",
-      joiningDate: row.joiningDate ? new Date(row.joiningDate).toISOString().slice(0, 10) : "",
-    });
-    setFiles({});
-    setFormError("");
-    setProblems({});
-    setStep(0);
-  };
-
-  /** What the first step will not move past. */
-  const basicProblems = () => {
-    const found = {};
-    if (!String(form.name || "").trim()) found.name = "Enter their full name";
-    if (!String(form.email || "").trim()) found.email = "Enter their email — it is the login ID";
-    if (isNew && !String(form.phone || "").trim()) found.phone = "Enter a mobile number";
-    return found;
-  };
-
-  const next = () => {
-    const found = basicProblems();
-    setProblems(found);
-    if (Object.keys(found).length) return;
-
-    setFormError("");
-    setStep(1);
-  };
-
-  const save = async (e) => {
-    e?.preventDefault();
-
-    /**
-     * An edit is one step and one request: this screen maintains the record
-     * and deliberately cannot touch the login or the paperwork — the scans
-     * have a route of their own.
-     */
-    if (!isNew) {
-      const found = basicProblems();
-      setProblems(found);
-      if (Object.keys(found).length) return;
-
-      setSaving(true);
-      setFormError("");
-
-      try {
-        await hrApi.put(`/hr/employees/${editing}`, {
-          name: form.name,
-          email: form.email,
-          phone: form.phone,
-          designation: form.designation,
-          department: form.department,
-          status: form.status,
-          joiningDate: form.joiningDate,
-        });
-        setEditing(null);
-        reload();
-      } catch (err) {
-        setFormError(err.response?.data?.message || "Could not save this record");
-      } finally {
-        setSaving(false);
-      }
-      return;
-    }
-
-    /**
-     * A hire is checked in full before anything is written — both steps, not
-     * just the one on screen. The stepper lets somebody jump back, so
-     * "I am standing on step two" is not the same as "step one is still
-     * filled in".
-     */
-    const basics = basicProblems();
-    if (Object.keys(basics).length) {
-      setStep(0);
-      setProblems(basics);
-      return;
-    }
-
-    const papers = paperworkProblems(form);
-    if (Object.keys(papers).length) {
-      setStep(1);
-      setProblems(papers);
-      return;
-    }
-
-    setSaving(true);
-    setFormError("");
-    setProblems({});
-
-    try {
-      /**
-       * Multipart, because of the scans. The two sub-documents travel as JSON
-       * strings beside the files — a FormData is flat, and the server would
-       * otherwise receive "documents[aadhaarNumber]" style keys to reassemble.
-       * The same shape the admin panel's staff form sends.
-       */
-      const body = new FormData();
-
-      const fields = {
-        name: form.name,
-        email: form.email,
-        phone: form.phone,
-        designation: form.designation,
-        department: form.department,
-        status: form.status,
-        address: form.address,
-      };
-      if (form.password) fields.password = form.password;
-      if (form.joiningDate) fields.joiningDate = form.joiningDate;
-      if (form.reportsTo) fields.reportsTo = form.reportsTo;
-
-      Object.entries(fields).forEach(([key, value]) => body.append(key, value ?? ""));
-      body.append("documents", JSON.stringify(form.documents));
-      body.append("bank", JSON.stringify(form.bank));
-      Object.entries(files).forEach(([name, file]) => file && body.append(name, file));
-
-      await hrApi.post("/hr/employees", body);
-
-      // The server falls back to the starting password when none is typed
-      setCredentials({ loginId: form.email, password: form.password || form.phone });
-      reload();
-    } catch (err) {
-      setFormError(err.response?.data?.message || "Could not save this record");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   /* --------------------------------------------------------------- table */
 
@@ -413,6 +208,26 @@ export default function Employees({ embedded = false }) {
     </div>
   );
 
+  /**
+   * The reporting line, on its own.
+   *
+   * An empty pick is sent as "" rather than left out, because the two mean
+   * different things to the server: absent is "do not touch it", empty is
+   * "take them off their manager". See the HR people controller.
+   */
+  const saveManager = async () => {
+    setAssignSaving(true);
+    try {
+      await hrApi.put(`/hr/employees/${assigning.row._id}`, { reportsTo: assigning.pick });
+      setAssigning(null);
+      setReloadKey((n) => n + 1);
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not change that reporting line");
+    } finally {
+      setAssignSaving(false);
+    }
+  };
+
   const actions = (row) => (
     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
       <button
@@ -425,7 +240,17 @@ export default function Employees({ embedded = false }) {
       </button>
       {canEdit && (
         <button
-          onClick={() => openEdit(row)}
+          onClick={() => setAssigning({ row, pick: row.reportsTo?._id || "" })}
+          title="Change who they report to"
+          aria-label={`Change who ${row.name} reports to`}
+          className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+        >
+          <UserRoundCog size={15} />
+        </button>
+      )}
+      {canEdit && (
+        <button
+          onClick={() => navigate(`${FORM_PATH}?id=${row._id}`)}
           title="Edit"
           aria-label={`Edit ${row.name}`}
           className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
@@ -464,6 +289,22 @@ export default function Employees({ embedded = false }) {
           <Badge tone="slate">{row.department}</Badge>
         ) : (
           <span className="text-slate-400">—</span>
+        ),
+    },
+    {
+      /**
+       * Who they answer to, on the list rather than three clicks inside the
+       * record. Nobody is drawn in amber rather than as a dash: an employee
+       * under no manager is a person whose leave nobody approves and whose
+       * report goes nowhere, which is a gap to fill, not a blank to ignore.
+       */
+      key: "reportsTo",
+      header: "Reports to",
+      render: (row) =>
+        row.reportsTo ? (
+          <span className="text-slate-700">{row.reportsTo.name}</span>
+        ) : (
+          <span className="text-xs text-amber-700">Nobody</span>
         ),
     },
     {
@@ -515,6 +356,11 @@ export default function Employees({ embedded = false }) {
           <Badge tone="blue">{(row.role || "").replace(/_/g, " ")}</Badge>
           {row.department && <Badge tone="slate">{row.department}</Badge>}
           <span className="text-[11px] text-slate-400">Joined {shortDate(row.joiningDate)}</span>
+          <span
+            className={`text-[11px] ${row.reportsTo ? "text-slate-500" : "text-amber-700"}`}
+          >
+            {row.reportsTo ? `Under ${row.reportsTo.name}` : "No manager"}
+          </span>
         </div>
 
         <div className="mt-2 -ml-1.5">{actions(row)}</div>
@@ -529,7 +375,7 @@ export default function Employees({ embedded = false }) {
       {!embedded && (
         <PageHeader title="Employees" subtitle={`${total} people on record`}>
           {canCreate && (
-            <Button onClick={openAdd}>
+            <Button onClick={() => navigate(FORM_PATH)}>
               <Plus size={15} /> Add employee
             </Button>
           )}
@@ -616,7 +462,7 @@ export default function Employees({ embedded = false }) {
           {/* Embedded, this is the only Add button on the screen — the People
               panel's own header carries the type dropdown instead */}
           {embedded && canCreate && (
-            <Button size="sm" className="ml-auto" onClick={openAdd}>
+            <Button size="sm" className="ml-auto" onClick={() => navigate(FORM_PATH)}>
               <Plus size={15} /> Add employee
             </Button>
           )}
@@ -680,212 +526,47 @@ export default function Employees({ embedded = false }) {
         docPath={(id, field) => `/hr/documents/${id}/${field}`}
       />
 
-      {/* ------------------------------------------------- add and edit */}
+
+      {/* ------------------------------------------- who they report to */}
       <Modal
-        open={Boolean(editing)}
-        onClose={closeForm}
-        size="lg"
-        title={isNew ? "Add employee" : "Edit record"}
-        subtitle={
-          credentials
-            ? undefined
-            : isNew
-              ? `Step ${step + 1} of ${STEPS.length} · ${STEPS[step].blurb}`
-              : "What somebody may sign in as is not changed from here"
-        }
+        open={Boolean(assigning)}
+        title="Who do they report to?"
+        subtitle={assigning?.row?.name}
+        size="sm"
+        onClose={() => setAssigning(null)}
         footer={
-          credentials ? (
-            <Button onClick={closeForm}>Done</Button>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => (isNew && step === 1 ? setStep(0) : closeForm())}
-                disabled={saving}
-              >
-                {isNew && step === 1 ? "Back" : "Cancel"}
-              </Button>
-              {isNew && step === 0 ? (
-                <Button onClick={next}>Next</Button>
-              ) : (
-                <Button onClick={save} loading={saving}>
-                  {isNew ? "Create employee" : "Save"}
-                </Button>
-              )}
-            </>
-          )
+          <>
+            <Button variant="ghost" onClick={() => setAssigning(null)} disabled={assignSaving}>
+              Cancel
+            </Button>
+            <Button onClick={saveManager} disabled={assignSaving}>
+              {assignSaving ? "Saving…" : "Save"}
+            </Button>
+          </>
         }
       >
-        {credentials ? (
+        {assigning && (
           <div className="space-y-3">
-            <Alert tone="success">
-              Account created. Pass these on now — the password cannot be shown again.
-            </Alert>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
-              <p className="flex items-center gap-2 font-medium text-slate-900">
-                <KeyRound size={14} /> Login details
-              </p>
-              <p className="mt-2 text-slate-600">
-                Email: <span className="font-mono text-slate-900">{credentials.loginId}</span>
-              </p>
-              <p className="text-slate-600">
-                Password: <span className="font-mono text-slate-900">{credentials.password}</span>
-              </p>
-              <p className="mt-2 text-xs text-slate-500">They sign in at /employee/login</p>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={save} className="space-y-4">
-            <Alert>{formError}</Alert>
-
-            {isNew && <Stepper step={step} onGo={(index) => index < step && setStep(index)} />}
-
-            {(!isNew || step === 0) && (
-              <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Name" required hint={problems.name}>
-                    <Input name="name" value={form.name} onChange={change} />
-                  </Field>
-                  <Field label="Email" required hint={problems.email}>
-                    <Input type="email" name="email" value={form.email} onChange={change} />
-                  </Field>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field
-                    label="Phone"
-                    required={isNew}
-                    hint={problems.phone || (isNew ? "This becomes the login password" : undefined)}
-                  >
-                    <Input name="phone" value={form.phone} onChange={change} />
-                  </Field>
-                  <Field label="Designation">
-                    <Input name="designation" value={form.designation} onChange={change} />
-                  </Field>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <Field label="Department">
-                    <Input name="department" value={form.department} onChange={change} />
-                  </Field>
-                  <Field label="Joined">
-                    <Input
-                      type="date"
-                      name="joiningDate"
-                      value={form.joiningDate}
-                      onChange={change}
-                    />
-                  </Field>
-                  <Field label="Status">
-                    <Select
-                      name="status"
-                      value={form.status}
-                      onChange={change}
-                      options={[
-                        { value: "active", label: "Active" },
-                        { value: "inactive", label: "Inactive" },
-                      ]}
-                    />
-                  </Field>
-                </div>
-
-                <Field label="Address">
-                  <Textarea
-                    name="address"
-                    rows={2}
-                    value={form.address}
-                    onChange={change}
-                    placeholder="House, street, city, state, PIN"
-                  />
-                </Field>
-
-                {/* Only on a hire. An edit from this screen deliberately cannot
-                    touch the login — see the controller's beforeSave. */}
-                {isNew && (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="Reports to" hint="The operations manager who gives them work">
-                      <Select
-                        name="reportsTo"
-                        value={form.reportsTo}
-                        onChange={change}
-                        placeholder="Not assigned yet"
-                        options={leaders.map((person) => ({
-                          value: person._id,
-                          label: person.designation
-                            ? `${person.name} — ${person.designation}`
-                            : person.name,
-                        }))}
-                      />
-                    </Field>
-                    <Field label="Password" hint={`Blank uses ${DEFAULT_PASSWORD}`}>
-                      <Input
-                        name="password"
-                        value={form.password}
-                        onChange={change}
-                        placeholder="••••••"
-                      />
-                    </Field>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {isNew && step === 1 && (
-              <OnboardingFields
-                form={form}
-                changeIn={changeIn}
-                files={files}
-                pickFile={pickFile}
-                problems={problems}
+            <Field label="Manager">
+              <Select
+                value={assigning.pick}
+                onChange={(e) =>
+                  setAssigning((current) => ({ ...current, pick: e.target.value }))
+                }
+                options={[{ value: "", label: "Nobody — take them off their manager" }, ...leaderOptions]}
+                disabled={assignSaving}
               />
-            )}
-          </form>
+            </Field>
+
+            <p className="text-xs text-slate-500">
+              {assigning.row.reportsTo
+                ? `Right now they report to ${assigning.row.reportsTo.name}.`
+                : "Right now nobody is above them."}{" "}
+              This is the line their reports travel up and their leave is approved along.
+            </p>
+          </div>
         )}
       </Modal>
     </div>
-  );
-}
-
-/* --------------------------------------------------------------- stepper */
-
-/**
- * Where in the form somebody is. Only steps already walked can be jumped back
- * to — on a create there is nothing behind step two until step one has been
- * filled in and checked.
- */
-function Stepper({ step, onGo }) {
-  return (
-    <ol className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1.5">
-      {STEPS.map((item, index) => {
-        const here = index === step;
-        const done = index < step;
-
-        return (
-          <li key={item.title} className="min-w-0 flex-1">
-            <button
-              type="button"
-              disabled={!done}
-              onClick={() => onGo(index)}
-              className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors ${
-                here
-                  ? "bg-white text-blue-800 shadow-sm ring-1 ring-blue-200"
-                  : done
-                    ? "text-slate-600 hover:bg-white"
-                    : "cursor-not-allowed text-slate-400"
-              }`}
-            >
-              <span
-                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
-                  here || done ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-500"
-                }`}
-              >
-                {index + 1}
-              </span>
-              <span className="truncate text-xs font-medium">{item.title}</span>
-            </button>
-          </li>
-        );
-      })}
-    </ol>
   );
 }

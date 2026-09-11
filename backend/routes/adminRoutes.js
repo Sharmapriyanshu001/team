@@ -191,6 +191,7 @@ import {
   getAttendanceSheet,
   saveAttendance,
   getAttendanceSummary,
+  staffAttendanceMonth,
 } from "../controllers/attendanceController.js";
 import { getRooms, getMessages, sendMessage } from "../controllers/chatController.js";
 import {
@@ -606,6 +607,12 @@ router.get("/employees/:id/details", staffDetails("employee"));
  * manager knowing what their team is paid changes a working relationship, and
  * that is a decision for the company rather than a side effect of a route.
  */
+/**
+ * The person's own attendance month, beside their record rather than on the
+ * company-wide sheet — same guard as the rest of what /staff answers for.
+ */
+router.get("/staff/:id/attendance", staffAttendanceMonth);
+
 router.get("/staff/:id/salary", getSalary);
 router.put("/staff/:id/salary/rate", setDailyRate);
 router.post("/staff/:id/salary/payments", addSalaryPayment);

@@ -156,6 +156,8 @@ import HrPanelDashboard from "./hr/pages/Dashboard";
  * reimplementing them, so both doors lead to the same room.
  */
 import HrPeople from "./hr/pages/People";
+import HrStaffForm from "./hr/pages/StaffForm";
+import HrReportingLines from "./hr/pages/ReportingLines";
 import HrPanelEmployees from "./hr/pages/Employees";
 import HrPanelManagers from "./hr/pages/HrManagers";
 import HrPanelAttendance from "./hr/pages/Attendance";
@@ -179,7 +181,6 @@ import HrPanelDocuments from "./hr/pages/Documents";
 import HrPanelReports from "./hr/pages/Reports";
 import HrPanelReportChain from "./hr/pages/ReportChain";
 import HrPanelDepartments from "./hr/pages/Departments";
-import HrPanelSettings from "./hr/pages/Settings";
 import HrDepartmentManagers from "./hr/pages/DepartmentManagers";
 import HrOperationsManagers from "./hr/pages/OperationsManagers";
 import HrSalesManagers from "./hr/pages/SalesManagers";
@@ -534,6 +535,12 @@ export default function App() {
             is a query parameter, so a particular list is still a link
             somebody can send: /hr/people?type=operation-manager */}
         <Route path="people" element={<HrPeople />} />
+        {/* The same four-step form the admin panel opens — one component, so
+            the two panels cannot ask for different things about one person.
+            Editing lands here too, with ?id= on it. */}
+        <Route path="employees/add" element={<HrStaffForm />} />
+        {/* Who works under whom, and the one screen for changing it in bulk */}
+        <Route path="reporting-lines" element={<HrReportingLines />} />
 
         {/* The five screens it is built from keep their own routes: the panel
             is a second door onto them, not a replacement. */}
@@ -573,7 +580,6 @@ export default function App() {
         <Route path="reports" element={<HrPanelReports />} />
         <Route path="report-chain" element={<HrPanelReportChain />} />
         <Route path="departments" element={<HrPanelDepartments />} />
-        <Route path="settings" element={<HrPanelSettings />} />
         <Route path="notifications" element={<HrPanelNotifications />} />
         <Route path="profile" element={<HrPanelProfile />} />
       </Route>

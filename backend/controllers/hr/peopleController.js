@@ -5,7 +5,7 @@ import Candidate from "../../models/Candidate.js";
 import Leave from "../../models/Leave.js";
 import Project from "../../models/Project.js";
 import Team, { ACTIVE_TEAM } from "../../models/Team.js";
-import User, { HR_PANEL_ROLES } from "../../models/User.js";
+import User, { HR_PANEL_ROLES, LEADER_ROLES } from "../../models/User.js";
 
 import { buildCrud } from "../../utils/crud.js";
 import { staffCrudOptions } from "../../utils/staffCrud.js";
@@ -55,11 +55,23 @@ export const staff = buildCrud(User, {
    */
   summary: true,
 
-  beforeSave: (payload) => {
-    const data = { ...payload };
+  /**
+   * The paperwork is handled the same way the admin panel handles it.
+   *
+   * HR's edit form is now the admin's form — the four-step one that carries
+   * Aadhaar, PAN, the CV, the bank account and the previous employer — so a
+   * save from it arrives as multipart with files on it. Without
+   * applyStaffPaperwork those files were written to disk, left off the record
+   * and never referenced again: the form would say it saved and the scan
+   * would be gone. The separate /employees/:id/documents route still answers
+   * for anything that posts only paperwork.
+   */
+  beforeSave: (payload, req, existing) => {
+    const { data: withPapers, orphaned } = applyStaffPaperwork(payload, req, existing);
+    const data = { ...withPapers };
 
     /**
-     * Three things this screen must never change, whatever arrives in the
+     * Four things this screen must never change, whatever arrives in the
      * body: what somebody may sign in as, and their credentials. HR maintains
      * the record; it does not hand out access from here.
      */
@@ -68,7 +80,28 @@ export const staff = buildCrud(User, {
     delete data.permissionRole;
     delete data.tokenVersion;
 
-    if (!data.reportsTo) delete data.reportsTo;
+    /**
+     * Three different things, and they used to be two.
+     *
+     *   absent   the caller is not talking about the reporting line — an edit
+     *            of somebody's phone number must not move them off a manager
+     *   ""       the caller means "nobody", which is how HR takes somebody
+     *            off a manager without having to pick another one
+     *   an id    put them under that person
+     *
+     * `if (!data.reportsTo) delete` collapsed the first two, so the only way
+     * out from under a manager was to be given a different one.
+     */
+    if (data.reportsTo === undefined) delete data.reportsTo;
+    else if (!String(data.reportsTo).trim()) data.reportsTo = null;
+
+    // A scan this save replaced, deleted only once the record itself is
+    // written — a failed save must never take the old file with it.
+    if (orphaned.length) {
+      req.res?.on("finish", () => {
+        if (req.res.statusCode < 400) orphaned.forEach(removeStoredFile);
+      });
+    }
 
     return data;
   },
@@ -99,6 +132,73 @@ export const staff = buildCrud(User, {
  * off every task and leave they ever touched.
  */
 export const newStaff = buildCrud(User, staffCrudOptions("employee"));
+
+/**
+ * PUT /api/hr/employees/reporting-line
+ *
+ * Put several people under one manager, or take them off theirs.
+ *
+ * A screen of its own writes through this rather than through a PUT per row:
+ * moving a team of nine between managers as nine separate requests is nine
+ * chances to half-succeed, and no way to tell somebody which four moved.
+ *
+ * `reportsTo` empty means nobody, the same as it does on an ordinary edit.
+ */
+export const setReportingLine = async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body.employees) ? req.body.employees.filter(Boolean) : [];
+    if (!ids.length) return res.status(400).json({ message: "Choose at least one person" });
+
+    const target = String(req.body.reportsTo || "").trim();
+
+    /**
+     * The manager has to be somebody who actually leads. Without this the
+     * field would take any user id at all — including the employee's own,
+     * which is a person reporting to themselves and a chain that never ends.
+     */
+    let manager = null;
+    if (target) {
+      manager = await User.findOne({
+        _id: target,
+        role: { $in: LEADER_ROLES },
+        status: "active",
+      }).select("name");
+
+      if (!manager) {
+        return res.status(400).json({ message: "That is not somebody who can manage a team" });
+      }
+      if (ids.some((id) => String(id) === String(manager._id))) {
+        return res.status(400).json({ message: "Somebody cannot report to themselves" });
+      }
+    }
+
+    const result = await User.updateMany(
+      { _id: { $in: ids }, role: { $in: STAFF_ROLES } },
+      { $set: { reportsTo: manager?._id || null } }
+    );
+
+    logActivity(req, {
+      action: "updated",
+      entity: "Employee",
+      message: manager
+        ? `${result.modifiedCount} moved under ${manager.name}`
+        : `${result.modifiedCount} taken off their manager`,
+    });
+
+    return res.status(200).json({
+      message: manager
+        ? `${result.matchedCount} now report to ${manager.name}`
+        : `${result.matchedCount} no longer report to anybody`,
+      moved: result.matchedCount,
+    });
+  } catch (err) {
+    if (err.name === "CastError") {
+      return res.status(400).json({ message: "One of those is not a person" });
+    }
+    console.error("setReportingLine error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
 
 /**
  * GET /api/hr/employees/:id/details

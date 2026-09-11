@@ -1,27 +1,25 @@
 import DepartmentsPage from "../../shared/reporting/DepartmentsPage";
 import hrApi from "../hrApi";
-import useHrAccess from "../hooks/useHrAccess";
 
 /**
  * Sales and Operations side by side, as HR sees them.
  *
  * HR leads the department managers, so the gaps matter here more than
- * anywhere: a team with no manager is HR's to staff. And opening a new
- * department is HR's too — it used to need an administrator, which meant the
- * department had to exist before the people who staff it could say so.
+ * anywhere: a team with no manager is HR's to staff.
+ *
+ * Read-only, like the admin panel's copy of this screen. `managePath` is what
+ * puts an "Add department" button on it, and neither panel passes one now — a
+ * department is a Team with a kind on it, and Teams & Targets is where one is
+ * opened. Two doors onto the same record, one of which explained less about
+ * what it was creating, was the thing worth removing.
  */
 export default function Departments() {
-  const { can } = useHrAccess();
-
   return (
     <DepartmentsPage
       api={hrApi}
       basePath="/hr/reports"
       title="Departments"
-      subtitle="The managers you lead, their teams and their numbers"
-      // Left out for an account without the grant, so the panel does not offer
-      // a button the server will refuse.
-      managePath={can("departments", "create") ? "/hr/departments" : undefined}
+      subtitle="The managers you lead, their teams and who answers to whom"
     />
   );
 }

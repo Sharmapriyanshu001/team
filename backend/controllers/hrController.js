@@ -9,7 +9,7 @@ import Team, { ACTIVE_TEAM } from "../models/Team.js";
 import User, { ADMIN_ROLES, DEPARTMENT_ROLES } from "../models/User.js";
 
 import { buildCrud, InvalidInput } from "../utils/crud.js";
-import { uploadedAs } from "../utils/staffDocuments.js";
+import { applyStaffPaperwork, uploadedAs } from "../utils/staffDocuments.js";
 import { copyStoredDocument, removeStoredFile, storedPath } from "../utils/uploads.js";
 import { logActivity } from "../utils/activity.js";
 import { notifyUser, notifyUsers } from "../utils/notify.js";
@@ -805,8 +805,30 @@ export const hireCandidate = async (req, res) => {
       (candidate.resume?.storedName ? copyStoredDocument(candidate.resume) : null);
     const address = String(req.body.address || candidate.address || "").trim();
 
+    /**
+     * The rest of the staff record, when the form sent one.
+     *
+     * Hiring is done from the four-step employee form now — the same one the
+     * admin panel adds staff with — so an Aadhaar number, a bank account and
+     * a previous employer can arrive with the hire. Run through the same
+     * helper every other staff write uses, so a scan uploaded here is filed
+     * exactly as it would be anywhere else.
+     *
+     * Nothing here is required. A hire held up over a missing PAN card is a
+     * person who cannot see their tasks on their first morning.
+     */
+    const { data: paperwork } = applyStaffPaperwork(
+      {
+        documents: req.body.documents,
+        bank: req.body.bank,
+        previousEmployment: req.body.previousEmployment,
+      },
+      req,
+      null
+    );
+
     const user = await User.create({
-      name: candidate.name,
+      name: req.body.name || candidate.name,
       email,
       password: hashPassword(password),
       role,
@@ -814,10 +836,18 @@ export const hireCandidate = async (req, res) => {
       designation: req.body.designation || onboarding.designation || candidate.position || "",
       department: req.body.department || onboarding.department || candidate.department || "",
       joiningDate: req.body.joiningDate || onboarding.joiningDate || new Date(),
-      status: "active",
+      status: req.body.status || "active",
       reportsTo: req.body.reportsTo || onboarding.reportsTo || undefined,
       address,
-      ...(resume ? { documents: { resume } } : {}),
+      ...paperwork,
+      /**
+       * The application's CV wins over an empty documents block but not over
+       * one the form uploaded — `resume` here is already "whatever was
+       * attached, else the candidate's", so it only fills a gap.
+       */
+      ...(resume
+        ? { documents: { ...(paperwork.documents || {}), resume: paperwork.documents?.resume || resume } }
+        : {}),
     });
 
     candidate.hiredUser = user._id;

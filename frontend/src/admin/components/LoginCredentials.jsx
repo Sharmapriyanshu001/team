@@ -56,6 +56,15 @@ export default function LoginCredentials({
   onPasswordChange,
   isEdit,
   roleLabel,
+  /**
+   * Whether this panel may set the password at all.
+   *
+   * False for HR editing a record: /api/hr/employees/:id strips the password
+   * out of every save on purpose — HR maintains the record and does not hand
+   * out access — so offering the box would be offering a field that reports
+   * success and changes nothing.
+   */
+  canSetPassword = true,
   children,
 }) {
   const effective = (password || "").trim() || DEFAULT_PASSWORD;
@@ -69,7 +78,9 @@ export default function LoginCredentials({
         <div>
           <p className="text-sm font-semibold text-slate-900">Login details</p>
           <p className="mt-0.5 text-xs text-slate-500">
-            Share these with the {roleLabel}. Only you can create or change them.
+            {canSetPassword
+              ? `Share these with the ${roleLabel}. Only you can create or change them.`
+              : `Share the login ID with the ${roleLabel}. Changing the password is an administrator's job.`}
           </p>
         </div>
       </div>
@@ -81,7 +92,9 @@ export default function LoginCredentials({
           value={isEdit && !password ? "" : effective}
           hint={
             isEdit && !password
-              ? "Unchanged. Type a new one below to reset it."
+              ? canSetPassword
+                ? "Unchanged. Type a new one below to reset it."
+                : "Unchanged — only an administrator can reset it."
               : (password || "").trim()
                 ? "Custom password you typed below"
                 : "The starting password every new account gets"
@@ -90,32 +103,36 @@ export default function LoginCredentials({
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field
-          label="Custom password"
-          hint={
-            isEdit
-              ? "Leave blank to keep the current password"
-              : `Leave blank to use ${DEFAULT_PASSWORD}`
-          }
-        >
-          <Input
-            name="password"
-            type="text"
-            value={password}
-            onChange={onPasswordChange}
-            placeholder={DEFAULT_PASSWORD}
-            autoComplete="new-password"
-          />
-        </Field>
+        {canSetPassword && (
+          <Field
+            label="Custom password"
+            hint={
+              isEdit
+                ? "Leave blank to keep the current password"
+                : `Leave blank to use ${DEFAULT_PASSWORD}`
+            }
+          >
+            <Input
+              name="password"
+              type="text"
+              value={password}
+              onChange={onPasswordChange}
+              placeholder={DEFAULT_PASSWORD}
+              autoComplete="new-password"
+            />
+          </Field>
+        )}
 
         {children}
       </div>
 
-      <p className="mt-3 flex items-start gap-1.5 text-[11px] text-slate-500">
-        <ShieldAlert size={13} className="mt-0.5 shrink-0" />
-        The starting password is the same for everybody, so ask them to change it from their own
-        Profile page at the first sign-in.
-      </p>
+      {canSetPassword && (
+        <p className="mt-3 flex items-start gap-1.5 text-[11px] text-slate-500">
+          <ShieldAlert size={13} className="mt-0.5 shrink-0" />
+          The starting password is the same for everybody, so ask them to change it from their own
+          Profile page at the first sign-in.
+        </p>
+      )}
     </div>
   );
 }

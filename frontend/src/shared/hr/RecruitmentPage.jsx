@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   CalendarPlus,
   ChevronsRight,
@@ -367,9 +368,21 @@ export default function RecruitmentPage({
   canHireDepartmentRoles = false,
   openingOptions = [],
   stagePath = "",
+  /**
+   * Where hiring happens, when it is a page rather than the dialog below.
+   *
+   * HR hires on the four-step employee form — the same one it adds staff with
+   * — because a hire writes a staff record and the dialog only ever asked for
+   * a corner of one. Given a path, the hire action navigates to it with the
+   * candidate's id; left out, the dialog answers as it always has, which is
+   * what the admin panel still uses.
+   */
+  hirePath = "",
   title,
   subtitle,
 }) {
+
+  const navigate = useNavigate();
 
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -715,6 +728,10 @@ export default function RecruitmentPage({
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (hirePath) {
+                  navigate(`${hirePath}?candidate=${row._id}`);
+                  return;
+                }
                 setHiring(row);
                 setResume(null);
                 setHireForm({

@@ -30,6 +30,84 @@ const liveStaff = () =>
     .select("name email designation department role")
     .sort({ name: 1 });
 
+/**
+ * One person's month, day by day.
+ *
+ * The sheet above answers "who was in today" across everybody; this answers
+ * "what has this person's month looked like" for one of them, which is the
+ * question somebody asks with their record already open in front of them.
+ *
+ * Deliberately not the salary endpoint, which computes the same days and then
+ * prices them. What a day of somebody's work is worth is a different thing to
+ * know than whether they were in, and the two are gated differently on
+ * purpose — a panel that could only show attendance by asking for the wage
+ * bill would have to hand out the wage bill.
+ *
+ * Days with no record are not invented here. An unmarked day means nobody
+ * filled the sheet in, which is not the same as an absence, and the calendar
+ * that quietly draws it as one is the calendar that starts an argument.
+ */
+export const staffAttendanceMonth = async (req, res) => {
+  try {
+    const now = new Date();
+    const year = Number(req.query.year) || now.getFullYear();
+    const month = Number(req.query.month) || now.getMonth() + 1;
+
+    if (month < 1 || month > 12) {
+      return res.status(400).json({ message: "Month must be between 1 and 12" });
+    }
+
+    const person = await User.findOne({
+      _id: req.params.id,
+      role: { $in: ATTENDANCE_ROLES },
+    }).select("name role designation");
+    if (!person) return res.status(404).json({ message: "That person was not found" });
+
+    const from = new Date(year, month - 1, 1);
+    const to = new Date(year, month, 0, 23, 59, 59, 999);
+
+    const marks = await Attendance.find({
+      employee: person._id,
+      date: { $gte: from, $lte: to },
+    })
+      .select("date status checkIn checkOut note")
+      .sort({ date: 1 });
+
+    const counts = { present: 0, absent: 0, half_day: 0, leave: 0 };
+    const days = marks.map((mark) => {
+      counts[mark.status] = (counts[mark.status] || 0) + 1;
+      return {
+        date: mark.date,
+        // The day of the month, so the browser does not have to parse a date
+        // string back apart to lay a grid out
+        day: new Date(mark.date).getDate(),
+        status: mark.status,
+        checkIn: mark.checkIn || "",
+        checkOut: mark.checkOut || "",
+        note: mark.note || "",
+      };
+    });
+
+    return res.status(200).json({
+      employee: { _id: person._id, name: person.name, role: person.role },
+      year,
+      month,
+      daysInMonth: new Date(year, month, 0).getDate(),
+      // Which weekday the 1st lands on, so the grid starts in the right column
+      startsOn: from.getDay(),
+      marked: marks.length,
+      counts,
+      days,
+    });
+  } catch (err) {
+    if (err.name === "CastError") {
+      return res.status(404).json({ message: "That person was not found" });
+    }
+    console.error("staffAttendanceMonth error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 // GET /api/admin/attendance?date=YYYY-MM-DD
 // Returns every employee with that day's record (or a blank one).
 export const getAttendanceSheet = async (req, res) => {

@@ -1,16 +1,15 @@
 import {
+  Network,
   Trophy,
   Bell,
   LayoutDashboard,
   UsersRound,
-  Network,
   Building2,
   CalendarCheck,
   CalendarOff,
   Briefcase,
   FolderOpen,
   BarChart3,
-  Settings,
   User,
 } from "lucide-react";
 
@@ -39,8 +38,7 @@ const MODULE_BY_PATH = [
   ["/hr/employees", "employees"],
   ["/hr/documents", "documents"],
   ["/hr/dashboard", "dashboard"],
-  ["/hr/settings", "settings"],
-  ["/hr/report-chain", "reports"],
+  ["/hr/reporting-lines", "employees"],
   ["/hr/departments", "reports"],
   ["/hr/reports", "reports"],
   ["/hr/leave", "leaves"],
@@ -112,7 +110,7 @@ export const NAV_ITEMS = [
    */
   { section: "People" },
   {
-    label: "People & Accounts",
+    label: "All Candidates",
     to: "/hr/people",
     icon: UsersRound,
     modules: [
@@ -178,11 +176,10 @@ export const NAV_ITEMS = [
 
   { section: "Company" },
   { label: "Reports", to: "/hr/reports", icon: BarChart3 },
-  // The middle of the chain: team updates arrive from the managers, and one
-  // HR report goes up to the Admin.
-  { label: "Report Chain", to: "/hr/report-chain", icon: Network },
+  // Staffing the chain: which manager each person works under. Departments
+  // above shows the shape; this is where it is changed.
+  { label: "Reporting Lines", to: "/hr/reporting-lines", icon: Network },
   { label: "Departments", to: "/hr/departments", icon: Building2 },
-  { label: "Settings", to: "/hr/settings", icon: Settings },
   // Ungated, like the route behind it — an inbox is how this account is told
   // what is happening to it. Leave requests and hiring updates land here.
   { label: "Notifications", to: "/hr/notifications", icon: Bell },

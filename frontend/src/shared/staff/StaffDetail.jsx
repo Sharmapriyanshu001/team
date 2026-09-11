@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 
 import Modal from "../components/Modal";
+import AttendanceTab from "./AttendanceTab";
 import SalaryTab from "./SalaryTab";
 import { Badge, Loader } from "../components/ui";
 import { fileSize, initialsOf, prettify } from "../format";
@@ -758,6 +759,13 @@ export default function StaffDetail({
      */
     if (api && basePath) list.push({ key: "salary", label: "Salary" });
 
+    /**
+     * Their own attendance month, on the same condition as Salary — it loads
+     * itself rather than arriving in the details payload, so it needs the
+     * panel's own client and prefix and is left out where there is none.
+     */
+    if (api && basePath) list.push({ key: "attendance", label: "Attendance" });
+
     if (person.previousEmployment?.companyName) {
       list.push({ key: "history", label: "Employment History" });
     }
@@ -1282,6 +1290,11 @@ export default function StaffDetail({
               employeeId={person._id}
               canEdit={canEditSalary}
             />
+          )}
+
+          {/* ------------------------------------------- attendance */}
+          {active === "attendance" && (
+            <AttendanceTab api={api} basePath={basePath} employeeId={person._id} />
           )}
 
           {/* ------------------------------------------------ login */}
