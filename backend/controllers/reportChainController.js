@@ -674,7 +674,7 @@ export const orgChart = async (req, res) => {
     const me = actorOf(req);
     const chain = await chainFor(me);
 
-    const [teams, hrAccounts, admins, unattached] = await Promise.all([
+    const [teams, hrAccounts, admins, staff] = await Promise.all([
       Team.find({ ...ACTIVE_TEAM })
         .populate("manager", "name email role designation")
         .populate("operationsManagers", "name role")
@@ -682,17 +682,58 @@ export const orgChart = async (req, res) => {
         .sort({ kind: 1, name: 1 }),
       User.find({ role: { $in: ["hr", "hr_manager"] }, status: "active" }).select("name email role"),
       User.find({ role: { $in: ADMIN_ROLES }, status: "active" }).select("name email role"),
-      // Employees on no team and reporting to nobody — invisible to the chain
+      /**
+       * Every member of staff, with whoever they report to.
+       *
+       * This used to fetch only the people who reported to nobody, which made
+       * the chart unable to see the case it most needed to: somebody given a
+       * manager but never added to a team. They dropped out of "reports to
+       * nobody" and were on no team either, so they appeared nowhere at all —
+       * changing a reporting line made a person vanish from the org chart.
+       */
       User.find({
         role: { $in: ["employee", "operations_manager"] },
         status: "active",
-        $or: [{ reportsTo: { $exists: false } }, { reportsTo: null }],
-      }).select("name email role designation"),
+      })
+        .select("name email role designation reportsTo")
+        .populate("reportsTo", "name role")
+        .sort({ name: 1 }),
     ]);
 
     const onATeam = new Set(
       teams.flatMap((team) => team.everyone().map(String))
     );
+
+    /**
+     * Everybody the teams do not account for, split by whether the chain can
+     * still reach them.
+     *
+     * A reporting line and a team are two different facts, and setting one
+     * has never set the other — Reporting Lines writes `reportsTo`, the teams
+     * screen writes membership. Somebody can therefore have a manager and no
+     * team, which is a perfectly ordinary state and used to be an invisible
+     * one. They are listed under their manager instead of being dropped.
+     */
+    const offTeam = staff.filter((person) => !onATeam.has(String(person._id)));
+
+    const brief = (person) => ({ _id: person._id, name: person.name, role: person.role });
+
+    const underManagers = [];
+    const byManager = new Map();
+
+    offTeam
+      .filter((person) => person.reportsTo)
+      .forEach((person) => {
+        const key = String(person.reportsTo._id);
+        if (!byManager.has(key)) {
+          const entry = { manager: brief(person.reportsTo), people: [] };
+          byManager.set(key, entry);
+          underManagers.push(entry);
+        }
+        byManager.get(key).people.push(brief(person));
+      });
+
+    const unattached = offTeam.filter((person) => !person.reportsTo).map(brief);
 
     return res.status(200).json({
       admins,
@@ -713,10 +754,14 @@ export const orgChart = async (req, res) => {
       gaps: {
         teamsWithoutManager: teams.filter((t) => !t.manager).map((t) => t.name),
         noHrAccount: hrAccounts.length === 0,
-        unattached: unattached
-          .filter((person) => !onATeam.has(String(person._id)))
-          .map((person) => ({ _id: person._id, name: person.name, role: person.role })),
+        unattached,
       },
+      /**
+       * On nobody's team, but somebody's report. Kept out of `gaps` because
+       * this is not a gap — the chain reaches these people, they simply are
+       * not on a team yet.
+       */
+      underManagers,
       you: {
         department: chain.department,
         team: chain.team,

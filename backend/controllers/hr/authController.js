@@ -104,7 +104,10 @@ export const updateProfile = async (req, res) => {
     const user = await User.findById(req.hr._id);
     if (!user) return res.status(404).json({ message: "Account not found" });
 
-    ["name", "phone", "designation"].forEach((field) => {
+    // department joins the list so this panel's profile asks for exactly what
+    // the admin one does — safeHr has always handed it back, it simply could
+    // not be set from here
+    ["name", "phone", "designation", "department"].forEach((field) => {
       if (req.body[field] !== undefined) user[field] = String(req.body[field]).trim();
     });
 

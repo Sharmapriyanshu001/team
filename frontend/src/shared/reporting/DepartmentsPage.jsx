@@ -6,6 +6,7 @@ import {
   Network,
   Plus,
   ShieldCheck,
+  UserRound,
   Users,
   UserX,
 } from "lucide-react";
@@ -134,6 +135,12 @@ function OrgTree({ org }) {
   }, {});
 
   const unattached = org?.gaps?.unattached || [];
+  /**
+   * People with a manager but no team. Not a gap — the chain reaches them —
+   * but they belong on the chart, and before the server sent this branch a
+   * reporting-line change made them disappear from it altogether.
+   */
+  const underManagers = org?.underManagers || [];
 
   return (
     <div className="px-4 py-4">
@@ -194,6 +201,31 @@ function OrgTree({ org }) {
             )}
           </Node>
         </Node>
+
+        {/* Reporting to somebody, on nobody's team. Setting a reporting line
+            and adding somebody to a team are two separate acts, so this is an
+            ordinary state rather than a mistake — it is drawn under the
+            manager who answers for them. */}
+        {underManagers.length > 0 && (
+          <Node
+            icon={UserRound}
+            label="Reporting in, not on a team"
+            tone="slate"
+            meta={`${underManagers.reduce((sum, g) => sum + g.people.length, 0)} people`}
+          >
+            {underManagers.map((group) => (
+              <Node
+                key={group.manager._id}
+                icon={UserRound}
+                label={group.manager.name}
+                tone="blue"
+                meta={prettify(group.manager.role)}
+              >
+                <People label="Reports" people={group.people} tone="slate" />
+              </Node>
+            ))}
+          </Node>
+        )}
 
         {/* Outside the chain entirely — drawn, because this is the branch
             somebody opened the chart to find */}

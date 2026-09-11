@@ -57,6 +57,7 @@ import {
   saveStaffPaperwork,
   serveDocument,
   staff,
+  setReportingLine,
   staffDetails,
 } from "../controllers/hr/peopleController.js";
 import { uploadCandidateResume, uploadStaffDocuments } from "../utils/uploads.js";
@@ -76,6 +77,7 @@ import {
 import {
   getAttendanceSheet,
   getAttendanceSummary,
+  staffAttendanceMonth,
   saveAttendance,
 } from "../controllers/attendanceController.js";
 
@@ -183,6 +185,15 @@ router.get("/dashboard", hrOverview);
 // Named sub-paths ahead of "/:id" so neither is read as an id
 router.get("/employees/:id/details", staffDetails);
 
+/**
+ * Moving people between managers, several at a time.
+ *
+ * Ahead of every "/employees/:id" below, or Express reads "reporting-line" as
+ * somebody's id and the handler spends its time explaining that no such person
+ * exists. Guarded by the employees module like the rest of this block.
+ */
+router.put("/employees/reporting-line", setReportingLine);
+
 /* ---------------------------------------------------------------- salary */
 
 /**
@@ -197,6 +208,12 @@ router.get("/employees/:id/details", staffDetails);
  * manager knowing what their team is paid changes a working relationship, and
  * that is a decision for the company rather than a side effect of a route.
  */
+/**
+ * The person's own attendance month, beside their record rather than on the
+ * company-wide sheet — same guard as the rest of what /staff answers for.
+ */
+router.get("/staff/:id/attendance", staffAttendanceMonth);
+
 router.get("/staff/:id/salary", getSalary);
 router.put("/staff/:id/salary/rate", setDailyRate);
 router.post("/staff/:id/salary/payments", addSalaryPayment);
@@ -216,7 +233,19 @@ router.put(
 );
 router.get("/employees", staff.list);
 router.get("/employees/:id", staff.getOne);
-router.put("/employees/:id", staff.update);
+/**
+ * Editing one, paperwork and all.
+ *
+ * Multipart like the admin panel's, because HR's edit form is the admin's
+ * form now and can carry a replacement Aadhaar scan with the rest of a save.
+ * A plain JSON body still works — multer leaves one alone.
+ */
+router.put(
+  "/employees/:id",
+  uploadStaffDocuments,
+  discardUploadsIfRefused,
+  staff.update
+);
 
 /**
  * Hiring one directly.

@@ -127,7 +127,7 @@ export default function People() {
   if (loading) {
     return (
       <div>
-        <PageHeader title="People" subtitle="Staff and the logins they sign in with" />
+        <PageHeader title="All Candidates" subtitle="Staff and the logins they sign in with" />
         <Loader />
       </div>
     );
@@ -136,7 +136,7 @@ export default function People() {
   if (!type) {
     return (
       <div>
-        <PageHeader title="People" subtitle="Staff and the logins they sign in with" />
+        <PageHeader title="All Candidates" subtitle="Staff and the logins they sign in with" />
         <EmptyState
           icon={Lock}
           title="Nothing here for your account"
@@ -150,7 +150,7 @@ export default function People() {
 
   return (
     <div>
-      <PageHeader title="People" subtitle={type.subtitle}>
+      <PageHeader title="All Candidates" subtitle={type.subtitle}>
         <label className="flex items-center gap-2">
           <span className="text-xs font-medium text-slate-500">Manage</span>
           <Select

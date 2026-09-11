@@ -27,6 +27,9 @@ export default function Candidates() {
       staffOptions={staffOptions}
       openingOptions={openingOptions}
       stagePath="/hr/hiring/candidates"
+      /* Hiring opens the four-step employee form rather than a dialog — the
+         same form HR adds staff with, prefilled from the application */
+      hirePath="/hr/employees/add"
       canHireDepartmentRoles={false}
       title="Candidates"
       subtitle="Everybody in the hiring pipeline"
