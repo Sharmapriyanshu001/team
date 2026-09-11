@@ -5,13 +5,21 @@ import { readStoredUser } from "../shared/createApi";
 import { LeaderContext } from "./leaderContext";
 
 /**
+ * The specialist screens this account has work in. Empty until /me answers,
+ * which is the right way round: a menu entry that appears is better than four
+ * that turn out to be dead.
+ */
+const NO_TOOLS = { play: false, seo: false, ads: false, vault: false };
+
+/**
  * Session-wide state for the leader panel: who is signed in, which optional
- * features the admin has enabled, and the unread notification count that the
- * sidebar badge reads.
+ * features the admin has enabled, which specialist tools they have work in,
+ * and the unread notification count that the sidebar badge reads.
  */
 export default function LeaderProvider({ children }) {
   const [leader, setLeader] = useState(() => readStoredUser("leader"));
   const [flags, setFlags] = useState({ clientChatEnabled: false });
+  const [tools, setTools] = useState(NO_TOOLS);
   const [unread, setUnread] = useState(0);
   const [newTasks, setNewTasks] = useState(0);
 
@@ -24,6 +32,7 @@ export default function LeaderProvider({ children }) {
         if (!active) return;
         setLeader(data.leader);
         setFlags(data.flags || { clientChatEnabled: false });
+        setTools(data.tools || NO_TOOLS);
         localStorage.setItem("leader", JSON.stringify(data.leader));
       })
       .catch(() => {});
@@ -79,6 +88,7 @@ export default function LeaderProvider({ children }) {
         leader,
         setLeader,
         flags,
+        tools,
         unread,
         refreshUnread,
         newTasks,

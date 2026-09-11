@@ -1,7 +1,9 @@
 import Task from "../../models/Task.js";
 import Project from "../../models/Project.js";
 import User, { ADMIN_ROLES } from "../../models/User.js";
+import FileDoc from "../../models/FileDoc.js";
 import { assignmentRecord } from "../../utils/projectTeam.js";
+import { removeStoredFile } from "../../utils/uploads.js";
 import { getScope } from "../../middleware/leaderAuth.js";
 import { logActivity } from "../../utils/activity.js";
 import { notifyUser } from "../../utils/notify.js";
@@ -302,8 +304,12 @@ export const getTask = async (req, res) => {
     const existing = await findVisibleTask(req, req.params.id);
     if (!existing) return res.status(404).json({ message: "Task not found" });
 
-    const item = await withRefs(Task.findById(existing._id));
-    return res.status(200).json({ item });
+    const [item, attachments] = await Promise.all([
+      withRefs(Task.findById(existing._id)),
+      FileDoc.find({ task: existing._id }).populate("uploadedBy", "name").sort({ createdAt: -1 }),
+    ]);
+
+    return res.status(200).json({ item, attachments });
   } catch (err) {
     console.error("leader getTask error:", err);
     return res.status(500).json({ message: "Server error" });
@@ -776,6 +782,137 @@ export const reviewTask = async (req, res) => {
     return res.status(200).json({ message: "Review saved", item });
   } catch (err) {
     console.error("leader reviewTask error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ------------------------------------------------------- task attachments */
+
+/**
+ * A ZIP travelling with the brief.
+ *
+ * "Carry on from where this got to" is an ordinary thing for a manager to
+ * ask, and until now there was nowhere to put the thing being carried on
+ * from: the employee read the description and had to go and ask for the
+ * files. A half-finished build, the assets, last week's export — whatever the
+ * work starts from rides along with the task itself.
+ *
+ * Stored exactly the way an assigned file is, because that is what it is: the
+ * same record, the same folder, the same download route and the same
+ * permission check. Only the `task` link is new, and it is what lets the
+ * employee's task screen find it.
+ */
+
+// POST /api/leader/tasks/:id/attachment   (multipart/form-data, field "file")
+export const attachToTask = async (req, res) => {
+  // A rejected request must take its temp archive with it — but once a record
+  // points at those bytes, deleting them would strand it.
+  let recorded = false;
+  const discard = () => !recorded && req.file && removeStoredFile(req.file.filename);
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Choose a .zip file to attach" });
+    }
+
+    const task = await findOwnTask(req, req.params.id);
+    if (!task) {
+      discard();
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    const title = (req.body.title || "").trim() || req.file.originalname.replace(/\.zip$/i, "");
+    const note = (req.body.note || "").trim();
+
+    /**
+     * Whoever the task is on owns the file too, so it shows up in their own
+     * Files screen and the hand-over can be signed off there. An unassigned
+     * task's archive simply sits on the project until somebody is given it.
+     */
+    const assignee = task.assignedTo
+      ? await User.findOne({ _id: task.assignedTo, status: "active" }).select("name role")
+      : null;
+
+    const assignable = assignee && ["employee", "operations_manager"].includes(assignee.role);
+
+    const file = await FileDoc.create({
+      title,
+      description: note,
+      category: "other",
+      fileType: "zip",
+      size: req.file.size,
+      project: task.project || undefined,
+      task: task._id,
+      storedName: req.file.filename,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      uploadedBy: req.leader._id,
+      ...(assignable
+        ? {
+            assignedTo: assignee._id,
+            assignedRole: assignee.role,
+            assignedBy: req.leader._id,
+            assignedAt: new Date(),
+            assignmentNote: note,
+            status: "assigned",
+          }
+        : { status: "available" }),
+    });
+    recorded = true;
+
+    logActivity(req, {
+      action: "created",
+      entity: "File",
+      entityId: file._id,
+      message: `${req.leader.name} attached "${title}" to task "${task.title}"`,
+    });
+
+    if (assignable) {
+      notifyUser(assignee._id, {
+        type: "task",
+        title: "A file came with your task",
+        message: `${req.leader.name} attached "${title}" to "${task.title}"`,
+        link: taskLinkFor(assignee.role),
+      });
+    }
+
+    return res.status(201).json({ message: "File attached", item: file });
+  } catch (err) {
+    discard();
+    console.error("leader attachToTask error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * Removing one again — the wrong archive gets picked, and re-uploading
+ * without this would leave the employee looking at two and guessing.
+ *
+ * Only from a task this manager runs, and only a file that is actually on
+ * that task: both are in the query, so neither can be talked around.
+ */
+// DELETE /api/leader/tasks/:id/attachment/:fileId
+export const removeTaskAttachment = async (req, res) => {
+  try {
+    const task = await findOwnTask(req, req.params.id);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+
+    const file = await FileDoc.findOne({ _id: req.params.fileId, task: task._id });
+    if (!file) return res.status(404).json({ message: "That file is not on this task" });
+
+    await file.deleteOne();
+    removeStoredFile(file.storedName);
+
+    logActivity(req, {
+      action: "deleted",
+      entity: "File",
+      entityId: file._id,
+      message: `${req.leader.name} removed "${file.title}" from task "${task.title}"`,
+    });
+
+    return res.status(200).json({ message: "Attachment removed" });
+  } catch (err) {
+    console.error("leader removeTaskAttachment error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };

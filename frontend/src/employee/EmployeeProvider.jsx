@@ -5,12 +5,21 @@ import { readStoredUser } from "../shared/createApi";
 import { EmployeeContext } from "./employeeContext";
 
 /**
+ * The specialist screens this account has work in. Empty until /me answers,
+ * which is the right way round: a menu entry that appears is better than four
+ * that turn out to be dead.
+ */
+const NO_TOOLS = { play: false, seo: false, ads: false, vault: false };
+
+/**
  * Session-wide state for the employee panel: who is signed in, which optional
- * features the admin has enabled, and the unread notification count.
+ * features the admin has enabled, which specialist tools they have work in,
+ * and the unread notification count.
  */
 export default function EmployeeProvider({ children }) {
   const [employee, setEmployee] = useState(() => readStoredUser("employee"));
   const [flags, setFlags] = useState({ clientChatEnabled: false });
+  const [tools, setTools] = useState(NO_TOOLS);
   const [unread, setUnread] = useState(0);
   const [newTasks, setNewTasks] = useState(0);
 
@@ -23,6 +32,7 @@ export default function EmployeeProvider({ children }) {
         if (!active) return;
         setEmployee(data.employee);
         setFlags(data.flags || { clientChatEnabled: false });
+        setTools(data.tools || NO_TOOLS);
         localStorage.setItem("employee", JSON.stringify(data.employee));
       })
       .catch(() => {});
@@ -77,6 +87,7 @@ export default function EmployeeProvider({ children }) {
         employee,
         setEmployee,
         flags,
+        tools,
         unread,
         refreshUnread,
         newTasks,

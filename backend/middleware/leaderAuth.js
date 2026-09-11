@@ -89,9 +89,31 @@ export const getScope = async (req) => {
     User.find({ reportsTo: req.leader._id }).distinct("_id"),
   ]);
 
+  /**
+   * The people on the projects this account runs.
+   *
+   * Without this, "my team" meant only direct reports and department members,
+   * and an operations manager handed a project full of developers saw an empty
+   * team page — while their dashboard counted that same project's tasks. The
+   * two screens disagreed about the same people.
+   *
+   * It also unsticks a rule that read oddly before: a manager could not assign
+   * an issue on their own project to the person working on it, because that
+   * person was not "their own team".
+   *
+   * Read from ledProjects rather than from projectIds below, which is derived
+   * from this list — taking it from there would be circular.
+   */
+  const projectMembers = await Project.find({ _id: { $in: ledProjects } }).distinct("members");
+
   const teamIds = [
-    ...new Set([...directReports.map(String), ...departmentIds]),
-  ];
+    ...new Set([
+      ...directReports.map(String),
+      ...departmentIds,
+      ...projectMembers.map(String),
+    ]),
+    // A manager is not on their own team, however they came to be on the project
+  ].filter((id) => id !== String(req.leader._id));
 
   // A manager also reaches whatever their people are working on
   const projectIds = isManager

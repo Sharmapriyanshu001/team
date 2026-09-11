@@ -3,6 +3,7 @@ import User from "../../models/User.js";
 import Setting from "../../models/Setting.js";
 import ActivityLog from "../../models/ActivityLog.js";
 import { hashPassword, comparePassword } from "../../utils/password.js";
+import { safeToolsFor } from "../../utils/staffTools.js";
 
 const createToken = signStaffToken;
 
@@ -62,6 +63,7 @@ export const employeeLogin = async (req, res) => {
       token: createToken(user),
       employee: safeEmployee(user, leader),
       flags: await readFlags(),
+      tools: await safeToolsFor(user),
     });
   } catch (err) {
     console.error("employeeLogin error:", err);
@@ -79,6 +81,8 @@ export const employeeProfile = async (req, res) => {
     return res.status(200).json({
       employee: safeEmployee(req.employee, leader),
       flags: await readFlags(),
+      // Which specialist screens this account has work in — see utils/staffTools
+      tools: await safeToolsFor(req.employee),
     });
   } catch (err) {
     console.error("employeeProfile error:", err);

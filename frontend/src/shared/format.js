@@ -15,6 +15,14 @@ export const initialsOf = (name = "") =>
     .join("")
     .toUpperCase() || "?";
 
+// Bytes as something a person reads. "—" for nothing, because a file of no
+// size is almost always a record with no upload behind it.
+export const formatSize = (bytes = 0) => {
+  if (!bytes) return "—";
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
+  return `${Math.round(bytes / 1024)} KB`;
+};
+
 // "in_progress" -> "In Progress". Used for every enum value shown in the UI.
 export const prettify = (value) =>
   String(value || "")

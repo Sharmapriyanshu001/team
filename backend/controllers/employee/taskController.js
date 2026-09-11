@@ -2,6 +2,7 @@ import Task from "../../models/Task.js";
 import Project from "../../models/Project.js";
 import WorkLog from "../../models/WorkLog.js";
 import Attendance from "../../models/Attendance.js";
+import FileDoc from "../../models/FileDoc.js";
 import { logActivity } from "../../utils/activity.js";
 import { notifyUser } from "../../utils/notify.js";
 
@@ -114,7 +115,7 @@ export const getTask = async (req, res) => {
 
     if (!task) return res.status(404).json({ message: "Task not found" });
 
-    const [project, siblings] = await Promise.all([
+    const [project, siblings, attachments] = await Promise.all([
       task.project
         ? Project.findById(task.project._id)
             .populate("client", "name company")
@@ -127,9 +128,20 @@ export const getTask = async (req, res) => {
         .populate("assignedTo", "name")
         .sort({ dueDate: 1 })
         .limit(8),
+
+      /**
+       * Archives the manager sent with the brief — a half-finished project to
+       * carry on from, the assets to work against, whatever the work needs to
+       * start. Without these the employee reads "continue the build" and has
+       * nowhere to get the build from.
+       */
+      FileDoc.find({ task: task._id })
+        .populate("assignedBy", "name")
+        .populate("uploadedBy", "name")
+        .sort({ createdAt: -1 }),
     ]);
 
-    return res.status(200).json({ task, project, siblings });
+    return res.status(200).json({ task, project, siblings, attachments });
   } catch (err) {
     console.error("employee getTask error:", err);
     return res.status(500).json({ message: "Server error" });

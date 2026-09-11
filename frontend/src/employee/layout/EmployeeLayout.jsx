@@ -7,7 +7,7 @@ import { useEmployee } from "../employeeContext";
 import useSignOut from "../../shared/useSignOut";
 
 export default function EmployeeLayout() {
-  const { employee, flags, unread, newTasks } = useEmployee();
+  const { employee, flags, tools, unread, newTasks } = useEmployee();
 
   const { askSignOut, signOutDialog } = useSignOut({
     tokenKey: "employeeToken",
@@ -18,6 +18,7 @@ export default function EmployeeLayout() {
 
   const navItems = buildNavItems({
     clientChatEnabled: flags.clientChatEnabled,
+    tools,
     unread,
     newTasks,
     onLogout: askSignOut,

@@ -488,12 +488,55 @@ export const getLookups = async (req, res) => {
   try {
     const { projectIds, teamIds, managedTeams } = await getScope(req);
 
-    const [projects, team] = await Promise.all([
+    const [projects, assignable] = await Promise.all([
       Project.find({ _id: { $in: projectIds } }).select("name code").sort({ name: 1 }),
-      // The role goes out too, so a screen can say what somebody is rather
-      // than assume everybody on a department is an employee
-      User.find({ _id: { $in: teamIds } }).select("name designation role").sort({ name: 1 }),
+
+      /**
+       * Who this account may hand work to — which is wider than who reports to
+       * them, and used to be narrower.
+       *
+       * This list only ever held `teamIds`: direct reports plus the members of
+       * any department this account runs. An operations manager with neither —
+       * the ordinary case for somebody the admin has just given a project to —
+       * got an "Assign to" dropdown containing nothing but "Leave unassigned",
+       * so the one screen for handing work down could not hand work to anybody.
+       *
+       * The server was never that strict. validateRefs in the task controller
+       * accepts any active employee, and only falls back to the reporting line
+       * for people who are not employees — somebody on a department this
+       * account manages. Assign Work has always offered the wider list too.
+       * So the dropdown was refusing choices the API behind it would have
+       * taken, which is the worst of the three to disagree with.
+       *
+       * Mirrored here deliberately, in the same two branches and the same
+       * order, so the list offered is the list accepted. Administrators are
+       * left out because the chain runs downwards; inactive accounts because
+       * they cannot be given work at all.
+       */
+      User.find({
+        status: "active",
+        role: { $nin: ADMIN_ROLES },
+        $or: [{ role: "employee" }, { _id: { $in: teamIds } }],
+      })
+        .select("name designation role")
+        .sort({ name: 1 }),
     ]);
+
+    /**
+     * Their own people first, then everybody else, each alphabetically — the
+     * order Assign Work already uses. The common case stays at the top of the
+     * list without the rest being hidden behind a decision.
+     */
+    const mine = new Set(teamIds.map(String));
+    const team = assignable
+      .map((person) => ({ ...person.toObject(), reportsToMe: mine.has(String(person._id)) }))
+      .sort((a, b) =>
+        a.reportsToMe === b.reportsToMe
+          ? a.name.localeCompare(b.name)
+          : a.reportsToMe
+            ? -1
+            : 1
+      );
 
     /**
      * The departments this account runs, for work that belongs to the team

@@ -99,6 +99,126 @@ export const listProjects = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/employee/projects/:id
+ *
+ * Everything about one project this employee is on: who owns it, what the
+ * whole board looks like beside their own slice of it, the files and archives
+ * handed over against it, and what is still open.
+ *
+ * Membership is the whole permission. The id is checked against the same
+ * scope the list uses, so a project this employee is not on reads as missing
+ * rather than as refused — there is nothing to learn from the difference.
+ */
+export const getProjectDetails = async (req, res) => {
+  try {
+    const { projectIds } = await getScope(req);
+
+    if (!onMyProject(projectIds, req.params.id)) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    const project = await Project.findById(req.params.id)
+      /**
+       * Name and company only. An employee on the project needs to know whose
+       * work this is; the client's phone number and address are the sales and
+       * admin side's to hold, and nothing on this screen asks for them.
+       */
+      .populate("client", "name company")
+      .populate("operationsManager", "name email designation")
+      .populate("members", "name designation department");
+
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    const [tasks, issues, files] = await Promise.all([
+      Task.find({ project: project._id })
+        .populate("assignedTo", "name designation")
+        .populate("assignedBy", "name")
+        .sort({ dueDate: 1, createdAt: -1 }),
+
+      Issue.find({ project: project._id })
+        .populate("assignedTo", "name")
+        .populate("raisedBy", "name")
+        .sort({ createdAt: -1 })
+        .limit(20),
+
+      /**
+       * Every file on the project, not only this employee's own.
+       *
+       * That is already what the download route allows — anyone on a project
+       * may pull a file sitting on it — so listing less here would hide
+       * documents an employee can reach anyway and is expected to work from.
+       * Which ones are theirs to act on is marked per row instead.
+       */
+      FileDoc.find({ project: project._id })
+        .populate("assignedTo", "name")
+        .populate("assignedBy", "name")
+        .populate("uploadedBy", "name")
+        .populate("task", "title")
+        .sort({ createdAt: -1 }),
+    ]);
+
+    const mine = (id) => String(id) === String(req.employee._id);
+
+    const myTasks = tasks.filter((task) => mine(task.assignedTo?._id));
+    const completed = tasks.filter((task) => task.status === "completed").length;
+
+    const taskStats = tasks.reduce(
+      (acc, task) => ({ ...acc, [task.status]: (acc[task.status] || 0) + 1 }),
+      {}
+    );
+
+    const from = assignedByFor(
+      project.memberAssignments,
+      req.employee._id,
+      project.operationsManager?.name
+    );
+
+    const record = project.toObject();
+    // How everyone else came to be on the project is nobody else's business
+    delete record.memberAssignments;
+
+    return res.status(200).json({
+      project: record,
+      assignedBy: from.assignedBy,
+      assignedAt: from.assignedAt,
+      assignedExact: from.exact,
+
+      myTasks,
+      teamTasks: tasks.filter((task) => !mine(task.assignedTo?._id)),
+      taskStats,
+
+      /**
+       * One percentage, and the task counts beside it as a plain fact.
+       *
+       * `Project.progress` is not a number somebody typed any more —
+       * utils/projectProgress.js recomputes it from the tasks on every task
+       * save, as the average of each task's own progress. Sending a second,
+       * count-of-completed percentage alongside it would be offering the
+       * employee a rival figure that the app deliberately does not use:
+       * counting completed tasks sits at 0% for as long as the first task
+       * takes, which is exactly why the roll-up averages instead.
+       */
+      progress: {
+        percent: project.progress ?? 0,
+        completed,
+        total: tasks.length,
+      },
+
+      files: files.map((file) => ({
+        ...file.toObject(),
+        // Whether this one is theirs to download and sign off, or reference
+        isMine: mine(file.assignedTo?._id),
+      })),
+
+      issues,
+    });
+  } catch (err) {
+    console.error("employee getProjectDetails error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 /* ----------------------------------------------------------------- files */
 
 /**

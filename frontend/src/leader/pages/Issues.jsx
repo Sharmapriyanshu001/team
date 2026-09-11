@@ -216,7 +216,7 @@ export default function Issues() {
               value={form.assignedTo}
               onChange={change}
               placeholder="Unassigned"
-              options={lookups.teamOptions}
+              options={lookups.myTeamOptions}
             />
           </Field>
 

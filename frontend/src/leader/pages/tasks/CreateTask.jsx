@@ -1,8 +1,11 @@
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, FileArchive, Save, Trash2, Upload } from "lucide-react";
 
+import leaderApi from "../../leaderApi";
 import { useRecordForm } from "../../hooks/crud";
 import useLookups from "../../hooks/useLookups";
+import { formatSize } from "../../../shared/format";
 import {
   Alert,
   Button,
@@ -52,11 +55,31 @@ const BELONGS_TO = [
   { value: "team", label: "My department" },
 ];
 
+// What the uploader on the server accepts. Said here only so the form can
+// refuse an over-sized file before spending a minute sending it.
+const MAX_ZIP_BYTES = 50 * 1024 * 1024;
+
 export default function CreateTask() {
   const navigate = useNavigate();
   const lookups = useLookups();
 
-  const { form, change, setForm, submit, isEdit, loading, saving, error, success } = useRecordForm(
+  /**
+   * A ZIP travelling with the brief.
+   *
+   * "Carry on from where this got to" is an ordinary thing to ask, and there
+   * was nowhere to put the thing being carried on from — the employee read
+   * the description and had to go and ask for the files. Held apart from the
+   * form because it does not travel with it: the task is created as ordinary
+   * JSON first, then the archive is posted against the id that comes back.
+   */
+  const fileInput = useRef(null);
+  const [zip, setZip] = useState(null);
+  const [zipNote, setZipNote] = useState("");
+  const [attachments, setAttachments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [zipError, setZipError] = useState("");
+
+  const { id, form, change, setForm, submit, isEdit, loading, saving, error, success } = useRecordForm(
     "tasks",
     EMPTY,
     (item) => ({
@@ -75,6 +98,59 @@ export default function CreateTask() {
   // An existing task shows the kind it already is; a new one starts on a
   // project, which is what nearly all of them are.
   const belongsTo = form.team && !form.project ? "team" : "project";
+
+  // What is already attached, so an edit can show it rather than silently
+  // adding a second copy of the same archive
+  useEffect(() => {
+    if (!isEdit) return undefined;
+    let active = true;
+
+    leaderApi
+      .get(`/leader/tasks/${id}`)
+      .then(({ data }) => active && setAttachments(data.attachments || []))
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [isEdit, id]);
+
+  const pickZip = (e) => {
+    const chosen = e.target.files?.[0] || null;
+    setZipError("");
+
+    if (chosen && chosen.size > MAX_ZIP_BYTES) {
+      setZipError(`That file is ${formatSize(chosen.size)} — the limit is 50 MB`);
+      e.target.value = "";
+      return;
+    }
+    setZip(chosen);
+  };
+
+  const clearZip = () => {
+    setZip(null);
+    setZipError("");
+    if (fileInput.current) fileInput.current.value = "";
+  };
+
+  /** Posts the chosen archive against a task that now exists. */
+  const uploadZip = async (taskId) => {
+    const body = new FormData();
+    body.append("file", zip);
+    if (zipNote.trim()) body.append("note", zipNote.trim());
+
+    const { data } = await leaderApi.post(`/leader/tasks/${taskId}/attachment`, body);
+    return data.item;
+  };
+
+  const detach = async (file) => {
+    try {
+      await leaderApi.delete(`/leader/tasks/${id}/attachment/${file._id}`);
+      setAttachments((prev) => prev.filter((row) => row._id !== file._id));
+    } catch (err) {
+      setZipError(err.response?.data?.message || "Could not remove that file");
+    }
+  };
 
   const changeBelongsTo = (e) =>
     setForm((current) => ({
@@ -102,8 +178,36 @@ export default function CreateTask() {
     if (belongsTo === "team") payload.project = null;
     else payload.team = null;
 
-    const ok = await submit(payload);
-    if (ok && isEdit) setTimeout(() => navigate("/operation-manager/tasks/assigned"), 700);
+    const saved = await submit(payload);
+    if (!saved) return;
+
+    /**
+     * The archive goes up after the task exists, because it has to be
+     * attached to something. A failed upload is reported on its own rather
+     * than rolled into the task's error: the task itself did save, and
+     * telling the manager otherwise would have them create it twice.
+     */
+    if (zip) {
+      const taskId = saved._id || id;
+      setUploading(true);
+      setZipError("");
+
+      try {
+        const file = await uploadZip(taskId);
+        setAttachments((prev) => [file, ...prev]);
+        clearZip();
+        setZipNote("");
+      } catch (err) {
+        setZipError(
+          err.response?.data?.message || "The task was saved, but the file could not be attached"
+        );
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
+    if (isEdit) setTimeout(() => navigate("/operation-manager/tasks/assigned"), 700);
   };
 
   if (loading) return <Loader />;
@@ -173,7 +277,7 @@ export default function CreateTask() {
                 </Field>
               )}
 
-              <Field label="Assign to" hint="Your team and the people reporting to you">
+              <Field label="Assign to" hint="Any active employee — your own people first">
                 <Select
                   name="assignedTo"
                   value={form.assignedTo}
@@ -245,15 +349,96 @@ export default function CreateTask() {
                 />
               </Field>
 
-              <Field label="Description" className="sm:col-span-2">
+              <Field
+                label="Description"
+                hint="The whole brief — what needs doing, what it depends on, and what done looks like"
+                className="sm:col-span-2"
+              >
                 <Textarea
                   name="description"
                   value={form.description}
                   onChange={change}
-                  rows={4}
+                  rows={6}
                   placeholder="What exactly needs doing, and what does done look like?"
                 />
               </Field>
+
+              {/* ------------------------------------------------- the archive */}
+              <div className="sm:col-span-2">
+                <div className="rounded-lg border border-dashed border-slate-300 p-4">
+                  <div className="flex items-start gap-2.5">
+                    <span className="mt-0.5 text-slate-400">
+                      <FileArchive size={16} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800">Attach a ZIP</p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Work already part-done, the assets, last week's export — whatever this
+                        task starts from. Up to 50 MB, .zip only. They download it from the task.
+                      </p>
+                    </div>
+                  </div>
+
+                  <Alert>{zipError}</Alert>
+
+                  {attachments.length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      {attachments.map((file) => (
+                        <div
+                          key={file._id}
+                          className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2"
+                        >
+                          <FileArchive size={14} className="shrink-0 text-slate-400" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-medium text-slate-700">
+                              {file.title}
+                            </p>
+                            <p className="text-[11px] text-slate-400">{formatSize(file.size)}</p>
+                          </div>
+                          {isEdit && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="danger"
+                              onClick={() => detach(file)}
+                            >
+                              <Trash2 size={13} />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <input
+                      ref={fileInput}
+                      type="file"
+                      accept=".zip"
+                      onChange={pickZip}
+                      className="block w-full text-xs text-slate-600 file:mr-3 file:cursor-pointer file:rounded-lg file:border file:border-slate-300 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-700 hover:file:bg-slate-50 sm:w-auto"
+                    />
+                    {zip && (
+                      <>
+                        <span className="text-xs text-slate-500">{formatSize(zip.size)}</span>
+                        <Button type="button" size="sm" variant="ghost" onClick={clearZip}>
+                          Clear
+                        </Button>
+                      </>
+                    )}
+                  </div>
+
+                  {zip && (
+                    <Field label="Note with the file" className="mt-3">
+                      <Input
+                        value={zipNote}
+                        onChange={(e) => setZipNote(e.target.value)}
+                        placeholder="What is in it, and where to pick up from"
+                      />
+                    </Field>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -261,9 +446,15 @@ export default function CreateTask() {
             <Button type="button" variant="outline" onClick={() => navigate("/operation-manager/tasks/assigned")}>
               Cancel
             </Button>
-            <Button type="submit" loading={saving}>
-              <Save size={15} />
-              {isEdit ? "Save changes" : "Create task"}
+            <Button type="submit" loading={saving || uploading}>
+              {uploading ? <Upload size={15} /> : <Save size={15} />}
+              {uploading
+                ? "Attaching file..."
+                : isEdit
+                  ? "Save changes"
+                  : zip
+                    ? "Create task & attach"
+                    : "Create task"}
             </Button>
           </div>
         </Card>

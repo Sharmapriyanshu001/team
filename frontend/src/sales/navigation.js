@@ -11,6 +11,7 @@ import {
   ListChecks,
   PackageCheck,
   BarChart3,
+  CalendarDays,
   Bell,
   User,
 } from "lucide-react";
@@ -118,6 +119,8 @@ export const navItemsFor = ({ newTasks = 0, isSalesHead = false } = {}) => [
   { section: "Account" },
   // Ungated on purpose, like the route behind it: an inbox is how this account
   // is told what is happening to it, not a section that can be withheld.
+  // Their own time off. Goes to HR and the administrators to decide.
+  { label: "My Leave", to: "/sales/leave", icon: CalendarDays },
   { label: "Notifications", to: "/sales/notifications", icon: Bell },
   { label: "Profile", to: "/sales/profile", icon: User },
 ];

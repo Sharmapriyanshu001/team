@@ -202,9 +202,11 @@ import CompletedProjects from "./leader/pages/projects/CompletedProjects";
 import ProjectDetails from "./leader/pages/projects/ProjectDetails";
 
 import TeamMembers from "./leader/pages/team/TeamMembers";
+import TeamMemberDetail from "./leader/pages/team/TeamMemberDetail";
 import TeamPerformance from "./leader/pages/team/TeamPerformance";
 
 import LeaderChangeRequests from "./leader/pages/ChangeRequests";
+import LeaderLeave from "./leader/pages/Leave";
 import LeaderLeavePolicies from "./leader/pages/LeavePolicies";
 import CreateTask from "./leader/pages/tasks/CreateTask";
 import AssignedTasks from "./leader/pages/tasks/AssignedTasks";
@@ -242,10 +244,13 @@ import EmployeeMyWork from "./employee/pages/MyWork";
 
 import EmpActiveProjects from "./employee/pages/projects/ActiveProjects";
 import EmpCompletedProjects from "./employee/pages/projects/CompletedProjects";
+import EmpProjectDetails from "./employee/pages/projects/ProjectDetails";
 
 import EmployeeChangeRequests from "./employee/pages/ChangeRequests";
 import TodayTasks from "./employee/pages/tasks/TodayTasks";
 import EmpPendingTasks from "./employee/pages/tasks/PendingTasks";
+import EmpInProgressTasks from "./employee/pages/tasks/InProgressTasks";
+import EmpReviewTasks from "./employee/pages/tasks/ReviewTasks";
 import EmpCompletedTasks from "./employee/pages/tasks/CompletedTasks";
 import TaskDetails from "./employee/pages/tasks/TaskDetails";
 
@@ -291,6 +296,7 @@ import SalesProjects from "./sales/pages/Projects";
 import SalesReports from "./sales/pages/Reports";
 import SalesNotifications from "./sales/pages/Notifications";
 import SalesProfile from "./sales/pages/Profile";
+import SalesLeave from "./sales/pages/Leave";
 
 /* ---------------------------------------------------------------- client */
 
@@ -618,6 +624,7 @@ export default function App() {
         <Route path="projects/details" element={<ProjectDetails />} />
 
         <Route path="team" element={<TeamMembers />} />
+        <Route path="team/member" element={<TeamMemberDetail />} />
         <Route path="team/performance" element={<TeamPerformance />} />
 
         <Route path="tasks/create" element={<CreateTask />} />
@@ -628,6 +635,7 @@ export default function App() {
         {/* Read-only. Writing policy is HR's — the leader router mounts only
             the GET, so there is nothing here to refuse. */}
         <Route path="leave-policies" element={<LeaderLeavePolicies />} />
+        <Route path="leave" element={<LeaderLeave />} />
         <Route path="tasks/pending" element={<LeaderPendingTasks />} />
         <Route path="tasks/completed" element={<LeaderCompletedTasks />} />
 
@@ -691,9 +699,12 @@ export default function App() {
 
         <Route path="projects/active" element={<EmpActiveProjects />} />
         <Route path="projects/completed" element={<EmpCompletedProjects />} />
+        <Route path="projects/details" element={<EmpProjectDetails />} />
 
         <Route path="tasks/today" element={<TodayTasks />} />
         <Route path="tasks/pending" element={<EmpPendingTasks />} />
+        <Route path="tasks/in-progress" element={<EmpInProgressTasks />} />
+        <Route path="tasks/review" element={<EmpReviewTasks />} />
         <Route path="tasks/completed" element={<EmpCompletedTasks />} />
         <Route path="tasks/details" element={<TaskDetails />} />
 
@@ -761,6 +772,7 @@ export default function App() {
         <Route path="reports" element={<SalesReports />} />
 
         <Route path="notifications" element={<SalesNotifications />} />
+        <Route path="leave" element={<SalesLeave />} />
         <Route path="profile" element={<SalesProfile />} />
       </Route>
 

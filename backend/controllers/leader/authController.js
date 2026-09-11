@@ -3,6 +3,7 @@ import User, { LEADER_ROLES } from "../../models/User.js";
 import Setting from "../../models/Setting.js";
 import ActivityLog from "../../models/ActivityLog.js";
 import { hashPassword, comparePassword } from "../../utils/password.js";
+import { safeToolsFor } from "../../utils/staffTools.js";
 
 const createToken = signStaffToken;
 
@@ -65,6 +66,7 @@ export const leaderLogin = async (req, res) => {
       token,
       leader: safeLeader(user),
       flags: await readFlags(),
+      tools: await safeToolsFor(user, { leader: true }),
     });
   } catch (err) {
     console.error("leaderLogin error:", err);
@@ -78,6 +80,8 @@ export const leaderProfile = async (req, res) => {
     return res.status(200).json({
       leader: safeLeader(req.leader),
       flags: await readFlags(),
+      // Which specialist screens this manager has work in — see utils/staffTools
+      tools: await safeToolsFor(req.leader, { leader: true }),
     });
   } catch (err) {
     console.error("leaderProfile error:", err);

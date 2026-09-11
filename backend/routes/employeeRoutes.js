@@ -99,6 +99,7 @@ import { downloadFile, completeFile } from "../controllers/fileAssignmentControl
 import { getAssignedWork } from "../controllers/employee/assignedController.js";
 import {
   listProjects,
+  getProjectDetails,
   listFiles,
   listIssues,
   createIssue,
@@ -147,6 +148,8 @@ router.put("/profile/password", changePassword);
 
 router.get("/dashboard", getDashboard);
 router.get("/projects", listProjects);
+// Clicking a project opens everything on it — membership is the whole check
+router.get("/projects/:id", getProjectDetails);
 
 /**
  * Everything an operations manager has handed them, grouped and dated.

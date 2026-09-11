@@ -8,15 +8,22 @@ import { Alert, Badge, Button, EmptyState, Loader } from "../../../shared/compon
 /**
  * Picking people for your own team.
  *
- * Every employee is listed, not just the ones nobody is leading — in a company
- * where everybody already has a leader, a list of the unassigned is an empty
- * list, and the feature would do nothing.
+ * Everybody in your department is listed, not just the ones nobody is leading
+ * — in a company where everybody already has a leader, a list of the
+ * unassigned is an empty list, and the feature would do nothing.
  *
  * So taking somebody from a colleague is allowed, and the screen makes sure it
  * is never an accident: each row says who that person answers to today, anyone
  * already on your team is shown as such and cannot be picked again, and taking
  * people from other teams is called out before you press the button. Their old
  * leader is told afterwards.
+ *
+ * Another department is where that stops. An operations manager sees the
+ * operations floor and a sales manager sees the sales floor, because a
+ * reporting line across two disciplines is not a team change — it is a
+ * reorganisation, and it belongs to whoever runs both. The server decides
+ * where the line is and says so in `department`; this screen only reports it,
+ * and the server checks again on the way in.
  */
 
 const initialsOf = (name = "") =>
@@ -31,6 +38,8 @@ export default function AddMembers({ open, onClose, onAdded }) {
   const [people, setPeople] = useState([]);
   const [picked, setPicked] = useState([]);
   const [search, setSearch] = useState("");
+  // What the server narrowed the list to — { label, excluded }
+  const [department, setDepartment] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,7 +60,11 @@ export default function AddMembers({ open, onClose, onAdded }) {
 
     leaderApi
       .get("/leader/team/available", { params: { search: search.trim() || undefined } })
-      .then(({ data }) => active && setPeople(data.items || []))
+      .then(({ data }) => {
+        if (!active) return;
+        setPeople(data.items || []);
+        setDepartment(data.department || null);
+      })
       .catch((err) => active && setError(err.response?.data?.message || "Could not load the list"))
       .finally(() => active && setLoading(false));
 
@@ -93,7 +106,11 @@ export default function AddMembers({ open, onClose, onAdded }) {
       open={open}
       onClose={onClose}
       title="Add people to your team"
-      subtitle="Everybody who works here — the ones already on your team are marked"
+      subtitle={
+        department?.label
+          ? `Everybody in ${department.label} — the ones already on your team are marked`
+          : "Everybody who works here — the ones already on your team are marked"
+      }
       size="lg"
       footer={
         <>
@@ -122,6 +139,16 @@ export default function AddMembers({ open, onClose, onAdded }) {
             className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
           />
         </div>
+
+        {/* Where the list stops, said once, so a missing colleague reads as a
+            rule rather than a bug */}
+        {department?.excluded > 0 && (
+          <p className="text-[11px] text-slate-500">
+            {department.excluded} {department.excluded === 1 ? "person" : "people"} in other
+            departments {department.excluded === 1 ? "is" : "are"} not shown — only{" "}
+            {department.label} can join your team.
+          </p>
+        )}
 
         {/* Said before the button is pressed, not after */}
         {takingFromOthers > 0 && (
@@ -200,11 +227,19 @@ export default function AddMembers({ open, onClose, onAdded }) {
         ) : (
           <EmptyState
             icon={Users}
-            title={search ? "Nobody matches that" : "No employees yet"}
+            title={
+              search
+                ? "Nobody matches that"
+                : department?.label
+                  ? `Nobody in ${department.label} yet`
+                  : "No employees yet"
+            }
             message={
               search
                 ? "Try a different name."
-                : "Employees appear here as soon as an admin adds them."
+                : department?.excluded > 0
+                  ? `${department.excluded} employees work here, but none of them are in ${department.label}. Ask an admin to put somebody on your department's team.`
+                  : "Employees appear here as soon as an admin adds them."
             }
           />
         )}

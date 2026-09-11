@@ -139,6 +139,95 @@ export const reportTargetFor = async (user) => {
   return { kind: "member_update", to: chain.manager, group: [], groupName: "", chain };
 };
 
+/** Every active operations manager, for a member with nobody named above them. */
+export const operationsManagerIds = async () =>
+  User.find({ role: "operations_manager", status: "active" }).distinct("_id");
+
+/**
+ * Where a person may send their report, as a list of choices rather than one
+ * answer.
+ *
+ * `reportTargetFor` above answers "where does this go", and for a manager or
+ * for HR that is still the whole truth — there is one step up and it is not a
+ * matter of opinion. For a team member it was never quite true: an update
+ * about being blocked on a manager, or about leave, or about anything the
+ * person above them is the subject of, has nowhere to go if the only address
+ * is that person.
+ *
+ * So a team member gets two: the person above them, and HR. The server still
+ * resolves who those actually are — the client sends a key, never an id, so
+ * nobody can address a report to somebody who is not above them.
+ *
+ * WHY NOTHING HERE EVER RETURNS AN EMPTY LIST
+ *
+ * A member with no team and no `reportsTo` used to be told to go and ask
+ * their manager to add them — which is a report, addressed to the one person
+ * they have been told they do not have. Every option falls back until it
+ * lands on somebody: the named manager, then the operations managers, then
+ * HR, then the administrators. A company with an admin account can always be
+ * reported to, and every company has one.
+ */
+export const reportRecipientsFor = async (user) => {
+  const target = await reportTargetFor(user);
+  const { chain } = target;
+
+  const option = (key, label, name, ids, group = null) => ({
+    key,
+    label,
+    name,
+    ids: ids.filter(Boolean),
+    group,
+    count: ids.filter(Boolean).length,
+  });
+
+  // HR and the administrators are functions; both keep their single address
+  if (target.kind !== "member_update") {
+    const group = target.kind === "hr_report" ? "admins" : "hr";
+    const fallback = target.kind === "hr_report" ? [] : chain.admins;
+    const ids = target.group.length ? target.group : fallback;
+    const name = target.group.length ? target.groupName : "Administrators";
+    const key = target.group.length ? group : "admins";
+
+    return {
+      kind: target.kind,
+      chain,
+      options: [option(key, name, name, ids, key)].filter((o) => o.count),
+    };
+  }
+
+  const options = [];
+
+  /**
+   * The person above them. Named where there is one, and the operations
+   * managers as a function where there is not — a member with no reporting
+   * line still has an operations side to tell.
+   */
+  if (chain.manager) {
+    options.push(
+      option(
+        "manager",
+        "Operations Manager",
+        chain.manager.name,
+        [chain.manager._id]
+      )
+    );
+  } else {
+    const ops = await operationsManagerIds();
+    if (ops.length) {
+      options.push(option("manager", "Operations Manager", "Operations Managers", ops, "operations"));
+    }
+  }
+
+  // HR, always — and the administrators if the company has no HR account yet
+  if (chain.hrTeam.length) {
+    options.push(option("hr", "HR", "HR", chain.hrTeam, "hr"));
+  } else if (chain.admins.length) {
+    options.push(option("hr", "HR", "Administrators", chain.admins, "admins"));
+  }
+
+  return { kind: target.kind, chain, options };
+};
+
 /**
  * Everybody below one person, for an inbox.
  *

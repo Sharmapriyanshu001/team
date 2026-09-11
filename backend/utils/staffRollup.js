@@ -30,39 +30,24 @@ export const projectRollup = (projects) => ({
 });
 
 /**
- * Task counts across a set of projects, or for one person, split the way the
- * cards read them.
+ * Finished work, split by whether it landed on the day it was due.
+ *
+ * Tasks with no due date are in neither count. A task nobody put a date on
+ * cannot be late, and counting it as on time would let a team with no
+ * deadlines score better than one that sets them and mostly meets them.
+ *
+ * A completion date is required for the same reason and one more: in a
+ * comparison, a missing date sorts below everything, so a task finished
+ * before completedAt was recorded would silently count as on time and
+ * flatter the number. Those are left out of both sides.
+ *
+ * Its own export because the employee's own dashboard asks the same question
+ * the admin and HR profile drawers do. One definition, so "94% on time" means
+ * the same thing on the screen the employee reads and on the screen their
+ * manager reads it from.
  */
-export const taskRollup = async (match) => {
-  const counts = countByStatus(
-    await Task.aggregate([{ $match: match }, { $group: { _id: "$status", count: { $sum: 1 } } }])
-  );
-
-  /**
-   * Late work, counted separately from open work.
-   *
-   * "Six pending" and "six pending, two of them late" are different answers to
-   * the same question, and the second is the one somebody opening a person's
-   * record is actually looking for.
-   */
-  const [overdue, onTime, lateDone] = await Promise.all([
-    Task.countDocuments({
-      ...match,
-      status: { $ne: "completed" },
-      dueDate: { $lt: new Date() },
-    }),
-    /**
-     * Finished work, split by whether it landed on the day it was due.
-     *
-     * Tasks with no due date are in neither count. A task nobody put a date on
-     * cannot be late, and counting it as on time would let a team with no
-     * deadlines score better than one that sets them and mostly meets them.
-     *
-     * A completion date is required for the same reason and one more: in a
-     * comparison, a missing date sorts below everything, so a task finished
-     * before completedAt was recorded would silently count as on time and
-     * flatter the number. Those are left out of both sides.
-     */
+export const onTimeSplit = async (match) => {
+  const [onTime, lateDone] = await Promise.all([
     Task.countDocuments({
       ...match,
       status: "completed",
@@ -82,16 +67,46 @@ export const taskRollup = async (match) => {
   const judged = onTime + lateDone;
 
   return {
-    tasksTotal: sumCounts(counts),
-    tasksCompleted: counts.completed || 0,
-    tasksPending: (counts.pending || 0) + (counts.in_progress || 0),
-    tasksInReview: counts.review || 0,
-    tasksOverdue: overdue,
     tasksOnTime: onTime,
     tasksLate: lateDone,
     // Null rather than 100 when nothing has been judged: "no deadlines yet" is
     // not a perfect record, and a tile saying 100% would claim it is.
     onTimeRate: judged ? Math.round((onTime / judged) * 100) : null,
+  };
+};
+
+/**
+ * Task counts across a set of projects, or for one person, split the way the
+ * cards read them.
+ */
+export const taskRollup = async (match) => {
+  const counts = countByStatus(
+    await Task.aggregate([{ $match: match }, { $group: { _id: "$status", count: { $sum: 1 } } }])
+  );
+
+  /**
+   * Late work, counted separately from open work.
+   *
+   * "Six pending" and "six pending, two of them late" are different answers to
+   * the same question, and the second is the one somebody opening a person's
+   * record is actually looking for.
+   */
+  const [overdue, timing] = await Promise.all([
+    Task.countDocuments({
+      ...match,
+      status: { $ne: "completed" },
+      dueDate: { $lt: new Date() },
+    }),
+    onTimeSplit(match),
+  ]);
+
+  return {
+    tasksTotal: sumCounts(counts),
+    tasksCompleted: counts.completed || 0,
+    tasksPending: (counts.pending || 0) + (counts.in_progress || 0),
+    tasksInReview: counts.review || 0,
+    tasksOverdue: overdue,
+    ...timing,
   };
 };
 

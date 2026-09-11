@@ -1,9 +1,19 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { ListChecks, Play, Send, RotateCcw, Star, ExternalLink } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  Download,
+  ExternalLink,
+  FileArchive,
+  ListChecks,
+  Play,
+  RotateCcw,
+  Send,
+  Star,
+} from "lucide-react";
 
 import employeeApi from "../../employeeApi";
-import { prettify } from "../../../shared/format";
+import { formatSize, prettify } from "../../../shared/format";
+import { saveBlob } from "../../../shared/download";
 import DataTable from "../../../shared/components/DataTable";
 import {
   Alert,
@@ -38,6 +48,7 @@ export default function TaskDetails() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [downloadingId, setDownloadingId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -97,6 +108,31 @@ export default function TaskDetails() {
       active = false;
     };
   }, [selectedId, reloadKey]);
+
+  /**
+   * The archive that came with the brief.
+   *
+   * Nothing under uploads/ is served statically — every read goes through a
+   * route that checks who is asking — so the bytes arrive as a blob behind
+   * this panel's token and are handed to the browser from there.
+   */
+  const download = async (file) => {
+    setDownloadingId(file._id);
+    setError("");
+
+    try {
+      const { data: blob } = await employeeApi.get(`/employee/files/${file._id}/download`, {
+        responseType: "blob",
+      });
+      saveBlob(blob, file.originalName || `${file.title}.zip`);
+      // Pulling it moves the hand-over on, so the row is stale now
+      setReloadKey((key) => key + 1);
+    } catch {
+      setError("Could not download that file");
+    } finally {
+      setDownloadingId("");
+    }
+  };
 
   const selectTask = (id) => {
     setLoadingDetail(true);
@@ -173,6 +209,8 @@ export default function TaskDetails() {
 
   const task = data?.task;
   const project = data?.project;
+  // Older payloads carry none; an empty list simply renders nothing
+  const attachments = data?.attachments || [];
 
   const siblingColumns = [
     { key: "title", header: "Task", render: (row) => row.title },
@@ -370,6 +408,49 @@ export default function TaskDetails() {
                 </div>
               </Card>
 
+              {/**
+               * Whatever the work starts from. "Carry on from where this got
+               * to" is an ordinary brief, and without this the employee had
+               * to go and ask for the files it refers to.
+               */}
+              {attachments.length > 0 && (
+                <Card>
+                  <CardHeader
+                    title="Sent with this task"
+                    subtitle={`${attachments.length} file${attachments.length === 1 ? "" : "s"} from your operations manager`}
+                  />
+                  <div className="divide-y divide-slate-100">
+                    {attachments.map((file) => (
+                      <div key={file._id} className="flex items-center gap-3 px-5 py-3">
+                        <span className="shrink-0 text-slate-400">
+                          <FileArchive size={16} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-slate-800">
+                            {file.title}
+                          </p>
+                          <p className="truncate text-[11px] text-slate-400">
+                            {(file.fileType || "file").toUpperCase()} · {formatSize(file.size)}
+                            {file.uploadedBy?.name ? ` · ${file.uploadedBy.name}` : ""}
+                          </p>
+                          {file.description && (
+                            <p className="mt-1 text-[11px] text-slate-500">{file.description}</p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          loading={downloadingId === file._id}
+                          onClick={() => download(file)}
+                        >
+                          <Download size={14} />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
               {project && (
                 <Card>
                   <CardHeader title="Project" subtitle={project.code || "No code"} />
@@ -399,13 +480,22 @@ export default function TaskDetails() {
                       </div>
                     </dl>
 
-                    <a
-                      href="/employee/projects/active"
+                    {/**
+                     * Straight to the project, not to the list of them. The
+                     * brief, the whole board and any archive sent on it are
+                     * all there, which is what somebody reading a task and
+                     * wondering "what is this part of" is actually after.
+                     *
+                     * A Link rather than an anchor: an <a> here reloaded the
+                     * whole app and threw the session's loaded state away.
+                     */}
+                    <Link
+                      to={`/employee/projects/details?id=${project._id}`}
                       className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
                     >
-                      All my projects
+                      Open this project
                       <ExternalLink size={12} />
-                    </a>
+                    </Link>
                   </div>
                 </Card>
               )}

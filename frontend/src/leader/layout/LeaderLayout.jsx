@@ -7,7 +7,7 @@ import { useLeader } from "../leaderContext";
 import useSignOut from "../../shared/useSignOut";
 
 export default function LeaderLayout() {
-  const { leader, flags, unread, newTasks } = useLeader();
+  const { leader, flags, tools, unread, newTasks } = useLeader();
 
   const { askSignOut, signOutDialog } = useSignOut({
     tokenKey: "leaderToken",
@@ -18,6 +18,7 @@ export default function LeaderLayout() {
 
   const navItems = buildNavItems({
     clientChatEnabled: flags.clientChatEnabled,
+    tools,
     unread,
     newTasks,
     onLogout: askSignOut,

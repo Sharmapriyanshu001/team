@@ -1,5 +1,12 @@
 import express from "express";
 
+import {
+  myLeavePolicies,
+  myLeaves,
+  applyForLeave,
+  myLeaveDetail,
+  withdrawLeave,
+} from "../controllers/employee/leaveController.js";
 import salesAuth, {
   requireSalesHead,
   salesGuard,
@@ -354,6 +361,26 @@ router.post("/clients/:id/share-hr", shareWithHr);
  * clients" and refuse somebody who only pressed Hand Over.
  */
 router.put("/clients/:id/handover", handOver);
+
+/* -------------------------------------------------------------- my leave */
+
+/**
+ * Somebody in Sales asking for their own time off.
+ *
+ * The same handlers the employee and operations manager panels use, scoped to
+ * whoever is signed in. Not behind a salesGuard on purpose: those gate the
+ * sales *resources* — leads, quotations, revenue — and a person's own leave is
+ * not one of them. Notifications sit outside the guards for the same reason.
+ *
+ * Deciding stays with HR and the administrators on
+ * PUT /api/hr/leaves/:id/decide. Nothing here approves anything.
+ */
+router.get("/leaves", myLeaves);
+router.get("/leave-policies", myLeavePolicies);
+router.post("/leaves", applyForLeave);
+// Above "/leaves/:id", or "withdraw" is read as a request id
+router.put("/leaves/:id/withdraw", withdrawLeave);
+router.get("/leaves/:id", myLeaveDetail);
 
 /* --------------------------------------------------------- notifications */
 

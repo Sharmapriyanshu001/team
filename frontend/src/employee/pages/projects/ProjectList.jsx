@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom";
+
 import { useCrud } from "../../hooks/crud";
 import DataTable from "../../../shared/components/DataTable";
 import Toolbar from "../../../shared/components/Toolbar";
@@ -7,6 +9,7 @@ const fmt = (value) => (value ? new Date(value).toLocaleDateString("en-IN") : "â
 
 /** Shared by "Active Projects" and "Completed Projects". */
 export default function ProjectList({ view, title, subtitle, emptyTitle, emptyMessage }) {
+  const navigate = useNavigate();
   const crud = useCrud("projects", { initialFilters: { view } });
 
   const columns = [
@@ -82,7 +85,10 @@ export default function ProjectList({ view, title, subtitle, emptyTitle, emptyMe
 
   return (
     <div>
-      <PageHeader title={title} subtitle={subtitle || `${crud.total} projects`} />
+      <PageHeader
+        title={title}
+        subtitle={subtitle || `${crud.total} projects â€” open one to see everything on it`}
+      />
 
       <Alert>{crud.error}</Alert>
 
@@ -101,6 +107,9 @@ export default function ProjectList({ view, title, subtitle, emptyTitle, emptyMe
           pages={crud.pages}
           total={crud.total}
           onPageChange={crud.setPage}
+          // The row is the way in: the brief, the board and any archive the
+          // manager sent all live on the project's own screen
+          onRowClick={(row) => navigate(`/employee/projects/details?id=${row._id}`)}
           emptyTitle={emptyTitle}
           emptyMessage={emptyMessage}
         />

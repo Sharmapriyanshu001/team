@@ -93,9 +93,28 @@ const reportSchema = new mongoose.Schema(
     authorName: { type: String, trim: true, default: "" },
     authorRole: { type: String, trim: true, default: "" },
 
-    /** Who it was sent to. The person one step up the chain. */
+    /** Who it was sent to, when it was sent to a person. */
     submittedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     submittedToName: { type: String, trim: true, default: "" },
+
+    /**
+     * Who it was sent to, when it was sent to a *function* instead.
+     *
+     * HR and the administrators are staffed by several people, and addressing
+     * one of them by id makes the report invisible to the others — which is
+     * how a company with two HR Managers loses half of what is sent up. Those
+     * reports carry no `submittedTo` at all, and until now the only way an
+     * inbox could find them was to guess from `kind`.
+     *
+     * That guess held exactly as long as each kind had one destination. It
+     * stopped holding the moment a team member could choose to send their
+     * update to HR rather than to their manager: same kind, different inbox.
+     * Naming the function makes the address explicit rather than inferred.
+     */
+    submittedToGroup: {
+      type: String,
+      enum: ["hr", "admins", "operations"],
+    },
 
     /* --------------------------------------------------------- the where */
 
@@ -159,6 +178,7 @@ reportSchema.methods.isAnswered = function isAnswered() {
 
 // The three questions every screen asks: my inbox, my outbox, and a month
 reportSchema.index({ submittedTo: 1, status: 1, year: -1, month: -1 });
+reportSchema.index({ submittedToGroup: 1, status: 1, year: -1, month: -1 });
 reportSchema.index({ author: 1, year: -1, month: -1 });
 reportSchema.index({ kind: 1, department: 1, year: -1, month: -1 });
 

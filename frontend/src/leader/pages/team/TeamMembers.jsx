@@ -1,6 +1,15 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Mail, Phone, BarChart3, MessageSquare, UserMinus, UserPlus } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  BarChart3,
+  Eye,
+  Mail,
+  MessageSquare,
+  Phone,
+  TriangleAlert,
+  UserMinus,
+  UserPlus,
+} from "lucide-react";
 
 import leaderApi from "../../leaderApi";
 import { useCrud } from "../../hooks/crud";
@@ -19,6 +28,7 @@ const initialsOf = (name = "") =>
     .toUpperCase();
 
 export default function TeamMembers() {
+  const navigate = useNavigate();
   const crud = useCrud("team");
 
   const [adding, setAdding] = useState(false);
@@ -83,9 +93,18 @@ export default function TeamMembers() {
       key: "tasks",
       header: "Workload",
       render: (row) => (
-        <span className="text-xs text-slate-600">
-          {row.tasksCompleted} done · <strong className="text-slate-900">{row.tasksOpen} open</strong>
-        </span>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+            {row.tasksOpen} open
+          </span>
+          <span className="text-slate-500">{row.tasksCompleted} done</span>
+          {row.tasksOverdue > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-700 ring-1 ring-inset ring-red-200">
+              <TriangleAlert size={11} />
+              {row.tasksOverdue}
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -100,7 +119,18 @@ export default function TeamMembers() {
       className: "text-right",
       render: (row) => (
         <div className="flex justify-end gap-1.5">
-          <Link to="/operation-manager/chat/employees">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/operation-manager/team/member?id=${row._id}`);
+            }}
+          >
+            <Eye size={14} />
+            Details
+          </Button>
+          <Link to="/operation-manager/chat/employees" onClick={(e) => e.stopPropagation()}>
             <Button size="sm" variant="outline">
               <MessageSquare size={14} />
               Chat
@@ -124,7 +154,19 @@ export default function TeamMembers() {
 
   return (
     <div>
-      <PageHeader title="Team Members" subtitle={`${crud.total} people report to you`}>
+      {/**
+       * "People on your team", not "people who report to you" — the list now
+       * includes everybody on a project this manager runs, who are their team
+       * in every sense that matters here even without a reporting line.
+       */}
+      <PageHeader
+        title="Team Members"
+        subtitle={
+          crud.total
+            ? `${crud.total} ${crud.total === 1 ? "person" : "people"} on your team — open one for their full record`
+            : "Nobody on your team yet"
+        }
+      >
         <Link to="/operation-manager/team/performance">
           <Button variant="outline">
             <BarChart3 size={15} />
@@ -160,8 +202,11 @@ export default function TeamMembers() {
           columns={columns}
           rows={crud.rows}
           loading={crud.loading}
+          // The row is the way in: what they are carrying, what they have
+          // finished and which of your projects it is spread across
+          onRowClick={(row) => navigate(`/operation-manager/team/member?id=${row._id}`)}
           emptyTitle="No team members yet"
-          emptyMessage="Press Add Members to pick from the employees who are not on anybody's team."
+          emptyMessage="Anybody on a project you run appears here. Press Add Members to bring in someone else."
         />
       </Card>
 

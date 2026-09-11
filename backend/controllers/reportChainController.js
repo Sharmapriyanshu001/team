@@ -5,7 +5,12 @@ import User, { ADMIN_ROLES, HR_PANEL_ROLES } from "../models/User.js";
 
 import { logActivity } from "../utils/activity.js";
 import { notifyUser, notifyUsers } from "../utils/notify.js";
-import { chainFor, reportTargetFor, reportsToMe } from "../utils/hierarchy.js";
+import {
+  chainFor,
+  reportRecipientsFor,
+  reportTargetFor,
+  reportsToMe,
+} from "../utils/hierarchy.js";
 
 /**
  * The reporting chain, from any panel.
@@ -25,6 +30,33 @@ import { chainFor, reportTargetFor, reportsToMe } from "../utils/hierarchy.js";
  */
 
 const actorOf = (req) => req.admin || req.hr || req.leader || req.employee;
+
+/**
+ * The functions one person staffs.
+ *
+ * A report addressed to HR carries no recipient id — it belongs to whoever
+ * is doing the HR job today — so every inbox and every permission check needs
+ * the same answer to "is that me". Written once here, because three copies of
+ * this is three places for somebody to quietly lose access to their own post.
+ */
+const functionsOf = (user) => {
+  const groups = [];
+  if (ADMIN_ROLES.includes(user.role)) groups.push("admins");
+  if (HR_PANEL_ROLES.includes(user.role)) groups.push("hr");
+  if (user.role === "operations_manager") groups.push("operations");
+  return groups;
+};
+
+/** Is this report addressed to me, by name or by function? */
+const addressedToMe = (report, user) => {
+  if (String(report.submittedTo?._id || report.submittedTo || "") === String(user._id)) return true;
+
+  // The old shape: kinds that have always had exactly one destination
+  if (report.kind === "hr_report" && ADMIN_ROLES.includes(user.role)) return true;
+  if (report.kind === "team_update" && HR_PANEL_ROLES.includes(user.role)) return true;
+
+  return Boolean(report.submittedToGroup) && functionsOf(user).includes(report.submittedToGroup);
+};
 
 /** A trimmed list of strings from either a list or a newline-separated block. */
 const lines = (value) => {
@@ -55,6 +87,7 @@ export const reportContext = async (req, res) => {
   try {
     const me = actorOf(req);
     const target = await reportTargetFor(me);
+    const { options } = await reportRecipientsFor(me);
 
     const now = new Date();
     const year = Number(req.query.year) || now.getFullYear();
@@ -90,13 +123,23 @@ export const reportContext = async (req, res) => {
     return res.status(200).json({
       kind: target.kind,
       chain: REPORT_CHAIN[target.kind],
-      goesTo: target.to
-        ? { _id: target.to._id, name: target.to.name, role: target.to.role }
-        : target.group.length
-          ? { name: target.groupName, count: target.group.length }
-          : null,
-      // The compose screen says plainly when there is nobody above to send to
-      blocked: !target.to && !target.group.length,
+      /**
+       * Where it can go. More than one for a team member, who chooses between
+       * the person above them and HR; exactly one for everybody else, whose
+       * step up the chain is not a matter of opinion.
+       */
+      recipients: options.map(({ key, label, name, count }) => ({ key, label, name, count })),
+
+      // Kept for anything still reading a single destination: the default one
+      goesTo: options[0] ? { name: options[0].name, count: options[0].count } : null,
+
+      /**
+       * Only true when the company has nobody to report to at all — no
+       * manager, no operations manager, no HR, no admin. Being on no team
+       * used to be enough to set this, which left the people most in need of
+       * saying something with no way to say it.
+       */
+      blocked: !options.length,
       department: target.chain.department,
       team: target.chain.team,
       period: { year, month },
@@ -158,18 +201,28 @@ export const reportInbox = async (req, res) => {
     const isHr = HR_PANEL_ROLES.includes(me.role);
 
     /**
-     * An administrator's inbox is every HR report, and an HR account's inbox
-     * is every team update — not only the ones carrying their id.
+     * Everything addressed to me, by name or by function.
      *
-     * Both are functions several people staff. Addressing a report to one of
-     * them by id would make it invisible to the others, which is exactly how a
-     * company with two HR Managers loses half of what is sent up.
+     * An administrator's inbox is every HR report and an HR account's inbox is
+     * every team update — not only the ones carrying their id. Both are
+     * functions several people staff, and addressing one of them by id would
+     * make the report invisible to the others.
+     *
+     * The `kind` clauses are the original chain — every HR report is the
+     * administrators', every team update is HR's. The `submittedToGroup`
+     * clause is what a team member choosing to write to HR produces: a
+     * member update that belongs in HR's inbox and matches none of the
+     * kind rules.
      */
-    const query = isAdmin
-      ? { kind: "hr_report", status: { $ne: "draft" } }
-      : isHr
-        ? { kind: "team_update", status: { $ne: "draft" } }
-        : { submittedTo: me._id, status: { $ne: "draft" } };
+    const addressed = [{ submittedTo: me._id }];
+
+    if (isAdmin) addressed.push({ kind: "hr_report" });
+    if (isHr) addressed.push({ kind: "team_update" });
+
+    const groups = functionsOf(me);
+    if (groups.length) addressed.push({ submittedToGroup: { $in: groups } });
+
+    const query = { status: { $ne: "draft" }, $or: addressed };
 
     if (req.query.year) query.year = Number(req.query.year);
     if (req.query.month) query.month = Number(req.query.month);
@@ -221,13 +274,8 @@ export const reportDetail = async (req, res) => {
      * that last one is what makes drilling down from a summary work at all.
      */
     const mine = String(report.author?._id || report.author) === String(me._id);
-    const toMe = String(report.submittedTo?._id || report.submittedTo || "") === String(me._id);
     const isAdmin = ADMIN_ROLES.includes(me.role);
-
-    // Addressed to a function this person staffs, rather than to their name
-    const toMyFunction =
-      (report.kind === "hr_report" && isAdmin) ||
-      (report.kind === "team_update" && HR_PANEL_ROLES.includes(me.role));
+    const toMe = addressedToMe(report, me);
 
     /**
      * Or it sits underneath something addressed to me. That is what makes
@@ -235,14 +283,14 @@ export const reportDetail = async (req, res) => {
      * HR reading a team update can open the member updates it summarises.
      */
     let viaParent = false;
-    if (!mine && !toMe && !isAdmin && !toMyFunction && report.rolledInto) {
-      const parent = await Report.findById(report.rolledInto).select("submittedTo kind");
-      viaParent =
-        String(parent?.submittedTo || "") === String(me._id) ||
-        (parent?.kind === "team_update" && HR_PANEL_ROLES.includes(me.role));
+    if (!mine && !toMe && !isAdmin && report.rolledInto) {
+      const parent = await Report.findById(report.rolledInto).select(
+        "submittedTo submittedToGroup kind"
+      );
+      viaParent = Boolean(parent) && addressedToMe(parent, me);
     }
 
-    if (!mine && !toMe && !isAdmin && !toMyFunction && !viaParent) {
+    if (!mine && !toMe && !isAdmin && !viaParent) {
       return res.status(403).json({ message: "That report was not sent to you" });
     }
 
@@ -267,15 +315,24 @@ export const submitReport = async (req, res) => {
   try {
     const me = actorOf(req);
     const target = await reportTargetFor(me);
+    const { options } = await reportRecipientsFor(me);
 
-    if (!target.to && !target.group.length) {
+    if (!options.length) {
       return res.status(409).json({
-        message:
-          target.kind === "member_update"
-            ? "You are not on a team yet — ask your manager to add you"
-            : "There is no HR account to send this to yet",
+        message: "There is nobody set up to receive reports yet",
       });
     }
+
+    /**
+     * The client sends a key — "manager" or "hr" — and never an id. Which
+     * people that key means is worked out here from the chain, so a request
+     * cannot address a report to somebody who is not above the author.
+     *
+     * An unknown or missing key falls back to the first option, which is the
+     * ordinary step up the chain.
+     */
+    const chosen =
+      options.find((o) => o.key === String(req.body.recipient || "")) || options[0];
 
     const now = new Date();
     const year = Number(req.body.year) || now.getFullYear();
@@ -348,14 +405,19 @@ export const submitReport = async (req, res) => {
       status: req.body.draft ? "draft" : "submitted",
     });
 
-    // Addressed to one person, except an HR report, which goes to whoever is
-    // administering the company rather than to a name
-    if (target.to) {
-      doc.submittedTo = target.to._id;
-      doc.submittedToName = target.to.name;
+    /**
+     * Addressed to a name when the choice resolved to one person, and to a
+     * function when it resolved to several. The function is written down
+     * rather than inferred from the kind — see Report.submittedToGroup.
+     */
+    if (!chosen.group && chosen.ids.length === 1) {
+      doc.submittedTo = chosen.ids[0];
+      doc.submittedToName = chosen.name;
+      doc.submittedToGroup = undefined;
     } else {
       doc.submittedTo = undefined;
-      doc.submittedToName = target.groupName;
+      doc.submittedToName = chosen.name;
+      doc.submittedToGroup = chosen.group || undefined;
     }
 
     await doc.save();
@@ -367,7 +429,7 @@ export const submitReport = async (req, res) => {
         await Report.updateMany({ _id: { $in: sources } }, { $set: { rolledInto: doc._id } });
       }
 
-      const recipients = target.to ? [target.to._id] : target.group;
+      const recipients = chosen.ids;
       notifyUsers(recipients, {
         type: "general",
         title: `${REPORT_CHAIN[target.kind].from} report from ${me.name}`,
@@ -422,14 +484,7 @@ const act = (field) => async (req, res) => {
       return res.status(409).json({ message: "That report has not been sent yet" });
     }
 
-    const toMe = String(report.submittedTo || "") === String(me._id);
-    const isAdmin = ADMIN_ROLES.includes(me.role);
-    // Addressed to a function rather than a name — see the inbox for why
-    const toMyFunction =
-      (report.kind === "hr_report" && isAdmin) ||
-      (report.kind === "team_update" && HR_PANEL_ROLES.includes(me.role));
-
-    if (!toMe && !toMyFunction) {
+    if (!addressedToMe(report, me)) {
       return res.status(403).json({ message: "That report was not sent to you" });
     }
 

@@ -2,6 +2,12 @@ import User from "../../models/User.js";
 
 import { logActivity } from "../../utils/activity.js";
 import { notifyUser } from "../../utils/notify.js";
+import {
+  departmentMap,
+  departmentsOf,
+  labelDepartments,
+  sameDepartment,
+} from "../../utils/departments.js";
 
 /**
  * An operations manager assembling their own team.
@@ -26,6 +32,24 @@ import { notifyUser } from "../../utils/notify.js";
  * reassignment nobody noticed is how somebody finds out on Friday that half
  * their team has gone. The visibility is the safeguard, not a refusal.
  *
+ * The one line that is not crossable is the department. A leader may take
+ * somebody from a colleague running the same kind of work; they may not reach
+ * into another department and take a person out of it. An operations manager
+ * assembling a delivery team has no business holding a sales executive's
+ * reporting line, and the pickers used to offer exactly that — every employee
+ * in the company, with nothing to say which of them were somebody else's
+ * discipline entirely.
+ *
+ * "Same department" is asked of the Team records first and the free-text
+ * department second, and an unknown answer on either side is permissive — see
+ * utils/departments. Refusing on a blank field would empty the picker in a
+ * company that has not finished filling in its teams, which is the failure
+ * this list has already been rescued from once.
+ *
+ * The filter is applied twice on purpose: once so the list does not offer what
+ * cannot be taken, and once on the way in, because hiding a row has never been
+ * access control.
+ *
  * Nothing but `reportsTo` is ever written. This is not a route that can edit a
  * staff record, and it is kept in its own file so that stays obvious.
  */
@@ -35,9 +59,10 @@ const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /**
  * GET /api/leader/team/available
  *
- * Every active employee, with the leader they currently answer to. The name
- * is historical — it is the pool a leader picks from, and it is deliberately
- * the whole company rather than the leftovers.
+ * The active employees of this leader's own department, with the leader each
+ * of them currently answers to. The name is historical — it is the pool a
+ * leader picks from, and inside the department it is deliberately everybody
+ * rather than the leftovers.
  */
 export const availableMembers = async (req, res) => {
   try {
@@ -49,37 +74,55 @@ export const availableMembers = async (req, res) => {
       query.$or = [{ name: regex }, { email: regex }, { designation: regex }];
     }
 
-    const people = await User.find(query)
-      .select("name email designation department joiningDate reportsTo")
-      .populate("reportsTo", "name")
-      .sort({ name: 1 });
+    const [people, byPerson] = await Promise.all([
+      User.find(query)
+        .select("name email designation department joiningDate reportsTo")
+        .populate("reportsTo", "name")
+        .sort({ name: 1 }),
+      departmentMap(),
+    ]);
 
     const mine = String(req.leader._id);
+    const myDepartments = departmentsOf(req.leader, byPerson);
 
-    const items = people.map((person) => {
-      const leaderId = String(person.reportsTo?._id || person.reportsTo || "");
+    const items = people
+      .filter((person) => sameDepartment(myDepartments, departmentsOf(person, byPerson)))
+      .map((person) => {
+        const leaderId = String(person.reportsTo?._id || person.reportsTo || "");
 
-      return {
-        _id: person._id,
-        name: person.name,
-        email: person.email,
-        designation: person.designation,
-        department: person.department,
-        joiningDate: person.joiningDate,
-        // Who they answer to today, so choosing one is an informed act rather
-        // than an accident
-        currentLeader: person.reportsTo ? { _id: leaderId, name: person.reportsTo.name } : null,
-        onMyTeam: leaderId === mine,
-        // On somebody else's team — the picker warns before taking them
-        onAnotherTeam: Boolean(leaderId) && leaderId !== mine,
-      };
-    });
+        return {
+          _id: person._id,
+          name: person.name,
+          email: person.email,
+          designation: person.designation,
+          department: person.department,
+          joiningDate: person.joiningDate,
+          // Who they answer to today, so choosing one is an informed act rather
+          // than an accident
+          currentLeader: person.reportsTo ? { _id: leaderId, name: person.reportsTo.name } : null,
+          onMyTeam: leaderId === mine,
+          // On somebody else's team — the picker warns before taking them
+          onAnotherTeam: Boolean(leaderId) && leaderId !== mine,
+        };
+      });
 
     return res.status(200).json({
       items,
       total: items.length,
       unassigned: items.filter((p) => !p.currentLeader).length,
       onMyTeam: items.filter((p) => p.onMyTeam).length,
+      /**
+       * What the list was narrowed to, so the screen can say so rather than
+       * leaving a leader wondering where a colleague went. Empty when this
+       * account's own department is not recorded anywhere — then nothing was
+       * narrowed and there is nothing to explain.
+       */
+      department: {
+        kinds: myDepartments,
+        label: labelDepartments(myDepartments),
+        // How many of the company's employees are somebody else's discipline
+        excluded: people.length - items.length,
+      },
     });
   } catch (err) {
     console.error("leader availableMembers error:", err);
@@ -107,12 +150,36 @@ export const addMembers = async (req, res) => {
      * make another operations manager, a manager or an administrator report to them
      * — that is not a team change, it is a reorganisation of the company.
      */
-    const people = await User.find({ _id: { $in: wanted }, role: "employee" })
-      .select("name email reportsTo")
-      .populate("reportsTo", "name");
+    const [people, byPerson] = await Promise.all([
+      User.find({ _id: { $in: wanted }, role: "employee" })
+        .select("name email department reportsTo")
+        .populate("reportsTo", "name"),
+      departmentMap(),
+    ]);
 
     if (!people.length) {
       return res.status(400).json({ message: "None of those are employees" });
+    }
+
+    /**
+     * Checked here and not only in the picker. A filtered list is a courtesy;
+     * this is the rule. Somebody posting an id the list never offered — a
+     * stale modal, a copied request — gets the same answer a colleague's
+     * department would give them in person.
+     */
+    const myDepartments = departmentsOf(req.leader, byPerson);
+    const outside = people.filter(
+      (person) => !sameDepartment(myDepartments, departmentsOf(person, byPerson))
+    );
+
+    if (outside.length) {
+      const label = labelDepartments(myDepartments);
+      return res.status(403).json({
+        message:
+          outside.length === 1
+            ? `${outside[0].name} is not in ${label || "your department"} — ask their manager to move them`
+            : `${outside.length} of those are not in ${label || "your department"} — ask their managers to move them`,
+      });
     }
 
     const mine = String(req.leader._id);

@@ -15,7 +15,7 @@ export default function Reporting() {
       api={employeeApi}
       basePath="/employee/reports"
       title="My Reports"
-      subtitle="Your update goes to your manager"
+      subtitle="Send your update to your operations manager or to HR"
     />
   );
 }

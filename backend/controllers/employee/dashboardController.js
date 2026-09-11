@@ -6,30 +6,28 @@ import WorkLog from "../../models/WorkLog.js";
 import Notification from "../../models/Notification.js";
 import User from "../../models/User.js";
 import { getScope } from "../../middleware/employeeAuth.js";
-
-const MONTH_LABELS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-const TZ = process.env.APP_TIMEZONE || "Asia/Kolkata";
-const localYear = (field) => ({ $year: { date: field, timezone: TZ } });
-const localMonth = (field) => ({ $month: { date: field, timezone: TZ } });
-
-const monthBuckets = (count) => {
-  const now = new Date();
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (count - 1 - i), 1);
-    return {
-      key: `${d.getFullYear()}-${d.getMonth() + 1}`,
-      label: MONTH_LABELS[d.getMonth()],
-      start: d,
-    };
-  });
-};
+import { onTimeSplit } from "../../utils/staffRollup.js";
 
 const countsToObject = (rows) =>
   rows.reduce((acc, row) => ({ ...acc, [row._id || "unknown"]: row.count }), {});
+
+/**
+ * "high" belongs above "medium" above "low" — which is not the order the
+ * database gives. Mongo compares these as strings, so a descending sort puts
+ * medium first and high last, and the one list meant to answer "what do I do
+ * now" led with the wrong task. Ranked here instead, where the order is said
+ * out loud.
+ */
+const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+
+const byPriorityThenDue = (a, b) => {
+  const rank = (PRIORITY_RANK[a.priority] ?? 9) - (PRIORITY_RANK[b.priority] ?? 9);
+  if (rank !== 0) return rank;
+  return new Date(a.dueDate || 0) - new Date(b.dueDate || 0);
+};
+
+/** How far back the activity feed looks, in days. */
+const ACTIVITY_DAYS = 14;
 
 // GET /api/employee/dashboard
 export const getDashboard = async (req, res) => {
@@ -37,19 +35,16 @@ export const getDashboard = async (req, res) => {
     const { projectIds, leaderId } = await getScope(req);
     const me = req.employee._id;
 
-    const buckets = monthBuckets(6);
-    const since = buckets[0].start;
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const activitySince = new Date(today.getTime() - ACTIVITY_DAYS * 86400000);
 
     const [
       projects,
       tasksByStatus,
-      donePerMonth,
       dueToday,
       overdueCount,
       upcoming,
@@ -57,8 +52,16 @@ export const getDashboard = async (req, res) => {
       attendanceRows,
       weekLogs,
       notifications,
+      unreadNotifications,
       leader,
       ratingRows,
+      timing,
+      priorityTasks,
+      doneToday,
+      wasAssigned,
+      wasSubmitted,
+      wasCompleted,
+      logsWritten,
     ] = await Promise.all([
       Project.find({ _id: { $in: projectIds } })
         .populate("client", "name company")
@@ -70,19 +73,18 @@ export const getDashboard = async (req, res) => {
         { $group: { _id: "$status", count: { $sum: 1 } } },
       ]),
 
-      Task.aggregate([
-        { $match: { assignedTo: me, status: "completed", completedAt: { $gte: since } } },
-        {
-          $group: {
-            _id: { y: localYear("$completedAt"), m: localMonth("$completedAt") },
-            count: { $sum: 1 },
-          },
-        },
-      ]),
-
-      Task.find({ assignedTo: me, dueDate: { $gte: today, $lt: tomorrow } })
+      /**
+       * Work still owed today. Completed tasks are excluded on purpose: this
+       * number is the red card, and a red card that counts finished work tells
+       * an employee they are behind when they are not.
+       */
+      Task.find({
+        assignedTo: me,
+        status: { $ne: "completed" },
+        dueDate: { $gte: today, $lt: tomorrow },
+      })
         .populate("project", "name code")
-        .sort({ priority: -1 }),
+        .sort({ dueDate: 1 }),
 
       Task.countDocuments({
         assignedTo: me,
@@ -112,18 +114,79 @@ export const getDashboard = async (req, res) => {
 
       Notification.find({ user: me }).sort({ createdAt: -1 }).limit(6),
 
+      /**
+       * The unread ones on their own, for the strip at the top of the screen.
+       *
+       * The list above is "the last six things that happened" and is mostly
+       * already-seen news by the time it is read. What belongs above the fold
+       * is the shorter question: is there anything here I have not dealt with
+       * yet. Same collection, and the {user, read, createdAt} index already
+       * covers this exact shape.
+       */
+      Notification.find({ user: me, read: false }).sort({ createdAt: -1 }).limit(5),
+
       leaderId ? User.findById(leaderId).select("name email designation") : null,
 
       Task.aggregate([
         { $match: { assignedTo: me, status: "completed", reviewRating: { $gt: 0 } } },
         { $group: { _id: null, avg: { $avg: "$reviewRating" }, count: { $sum: 1 } } },
       ]),
-    ]);
 
-    const monthMap = donePerMonth.reduce(
-      (acc, row) => ({ ...acc, [`${row._id.y}-${row._id.m}`]: row.count }),
-      {}
-    );
+      /**
+       * How much of the finished work landed by its due date. Counted by the
+       * same helper the admin and HR profile drawers use, so the employee is
+       * reading the same number their manager is.
+       */
+      onTimeSplit({ assignedTo: me }),
+
+      /**
+       * What to do now: everything still open that is due today or already
+       * late. Overdue work belongs here rather than in a separate card — a
+       * task that was due yesterday is not less urgent for having been missed,
+       * and an employee who only sees "due today" never sees it again at all.
+       */
+      Task.find({ assignedTo: me, status: { $ne: "completed" }, dueDate: { $lt: tomorrow } })
+        .populate("project", "name")
+        .limit(25),
+
+      Task.find({
+        assignedTo: me,
+        status: "completed",
+        completedAt: { $gte: today, $lt: tomorrow },
+      })
+        .populate("project", "name")
+        .sort({ completedAt: -1 })
+        .limit(4),
+
+      /* ------------------------------------------- the activity feed's sources
+       *
+       * Read from the tasks and logs themselves rather than from the
+       * notifications table, because the notifications card sits on this same
+       * screen: sourcing both from one place would print every line twice.
+       * These also cover what the employee did, which they are never notified
+       * about and which is half of what "what happened" means.
+       */
+      Task.find({ assignedTo: me, createdAt: { $gte: activitySince } })
+        .populate("assignedBy", "name")
+        .select("title assignedBy createdAt")
+        .sort({ createdAt: -1 })
+        .limit(10),
+
+      Task.find({ assignedTo: me, status: "review", updatedAt: { $gte: activitySince } })
+        .select("title updatedAt")
+        .sort({ updatedAt: -1 })
+        .limit(10),
+
+      Task.find({ assignedTo: me, status: "completed", completedAt: { $gte: activitySince } })
+        .select("title completedAt reviewRating")
+        .sort({ completedAt: -1 })
+        .limit(10),
+
+      WorkLog.find({ employee: me, createdAt: { $gte: activitySince } })
+        .select("date hours createdAt")
+        .sort({ createdAt: -1 })
+        .limit(10),
+    ]);
 
     const statusCounts = countsToObject(tasksByStatus);
     const tasksTotal = Object.values(statusCounts).reduce((sum, n) => sum + n, 0);
@@ -144,6 +207,53 @@ export const getDashboard = async (req, res) => {
       };
     });
 
+    const taskLink = (id) => `/employee/tasks/details?id=${id}`;
+
+    /**
+     * One feed out of four sources. Each row carries the time it happened so
+     * they can be interleaved; whoever renders it only sorts and prints.
+     */
+    const activity = [
+      ...wasAssigned.map((task) => ({
+        id: `assigned-${task._id}`,
+        kind: "assigned",
+        at: task.createdAt,
+        text: `${task.assignedBy?.name || "Your manager"} assigned you a new task`,
+        detail: task.title,
+        link: taskLink(task._id),
+      })),
+      ...wasSubmitted.map((task) => ({
+        id: `submitted-${task._id}`,
+        kind: "submitted",
+        at: task.updatedAt,
+        text: "You submitted work for review",
+        detail: task.title,
+        link: taskLink(task._id),
+      })),
+      ...wasCompleted.map((task) => ({
+        id: `completed-${task._id}`,
+        kind: task.reviewRating > 0 ? "reviewed" : "completed",
+        at: task.completedAt,
+        text:
+          task.reviewRating > 0
+            ? `Your operations manager reviewed your task — ${task.reviewRating}/5`
+            : "Task completed",
+        detail: task.title,
+        link: taskLink(task._id),
+      })),
+      ...logsWritten.map((log) => ({
+        id: `log-${log._id}`,
+        kind: "log",
+        at: log.createdAt,
+        text: "You submitted your daily work log",
+        detail: log.hours ? `${log.hours} h logged` : "",
+        link: "/employee/history",
+      })),
+    ]
+      .filter((row) => row.at)
+      .sort((a, b) => new Date(b.at) - new Date(a.at))
+      .slice(0, 8);
+
     return res.status(200).json({
       stats: {
         projects: projects.length,
@@ -156,11 +266,16 @@ export const getDashboard = async (req, res) => {
         tasksTotal,
         tasksCompleted,
         tasksPending: (statusCounts.pending || 0) + (statusCounts.in_progress || 0),
+        tasksNotStarted: statusCounts.pending || 0,
+        tasksInProgress: statusCounts.in_progress || 0,
         tasksInReview: statusCounts.review || 0,
         dueToday: dueToday.length,
         overdueTasks: overdueCount,
         openIssues: myIssues,
         completionRate: tasksTotal ? Math.round((tasksCompleted / tasksTotal) * 100) : 0,
+        // tasksOnTime / tasksLate / onTimeRate — onTimeRate is null, not 0,
+        // when nothing has had a deadline to be judged against yet.
+        ...timing,
         attendanceRate: attendanceDays
           ? Math.round(((attendance.present || 0) / attendanceDays) * 100)
           : 0,
@@ -168,10 +283,6 @@ export const getDashboard = async (req, res) => {
         ratedTasks: ratingRows[0]?.count || 0,
       },
       charts: {
-        monthlyTrend: buckets.map((b) => ({
-          month: b.label,
-          tasksCompleted: monthMap[b.key] || 0,
-        })),
         tasksByStatus: statusCounts,
         attendanceThisMonth: attendance,
         hoursByDay,
@@ -179,8 +290,12 @@ export const getDashboard = async (req, res) => {
       recent: {
         projects: projects.slice(0, 5),
         dueToday,
+        priority: priorityTasks.sort(byPriorityThenDue).slice(0, 6),
+        doneToday,
         upcoming,
         notifications,
+        unreadNotifications,
+        activity,
       },
       leader,
     });

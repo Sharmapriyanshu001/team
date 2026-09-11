@@ -200,15 +200,25 @@ export const makeCrudHooks = (api, base) => {
         setSuccess("");
 
         try {
+          /**
+           * The saved record comes back, not just `true`.
+           *
+           * Anything that has to do a second thing to the record it just
+           * created — attach a file to a new task, say — needs its id, and
+           * a bare boolean left the caller with no way to get one. Still
+           * truthy, so every `if (ok)` already written keeps working, and
+           * failure is still plain `false`.
+           */
           if (id) {
-            await api.put(`${base}/${resource}/${id}`, payload);
+            const { data } = await api.put(`${base}/${resource}/${id}`, payload);
             setSuccess("Changes saved successfully");
-          } else {
-            await api.post(`${base}/${resource}`, payload);
-            setSuccess("Record created successfully");
-            if (!keepValues) setForm(initialValues);
+            return data?.item || data || true;
           }
-          return true;
+
+          const { data } = await api.post(`${base}/${resource}`, payload);
+          setSuccess("Record created successfully");
+          if (!keepValues) setForm(initialValues);
+          return data?.item || data || true;
         } catch (err) {
           setError(err.response?.data?.message || "Could not save. Please try again.");
           return false;

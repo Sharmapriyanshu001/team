@@ -6,19 +6,73 @@ import { logActivity } from "../../utils/activity.js";
 import { notifyUsers } from "../../utils/notify.js";
 
 /**
- * Applying for leave, from the employee's own panel.
+ * Asking for your own leave, from whichever panel you sign in to.
  *
  * The other half of HR's leave screens: HR could already file and decide a
  * leave on somebody's behalf, but the person actually taking the day had no
  * way to ask for it. This is that route, and deliberately nothing more.
  *
- * Everything here is scoped to `req.employee._id` at the query level rather
- * than by trusting a field in the body. An employee may see, file and withdraw
+ * Mounted on the employee, operations manager and sales panels. A manager
+ * takes leave like anybody else, and until this was shared they were the one
+ * group in the company with no way to ask for it — the "Leave Policies" link
+ * in their sidebar showed them the rules they were entitled to and no way to
+ * use them.
+ *
+ * Everything here is scoped to the signed-in account at the query level rather
+ * than by trusting a field in the body. Somebody may see, file and withdraw
  * their own requests and nobody else's — and they may never decide one, not
  * even their own. Approval lives on PUT /api/hr/leaves/:id/decide and stays
- * there; a second decision path is how an employee ends up approving their own
+ * there; a second decision path is how somebody ends up approving their own
  * leave through a route nobody remembered to check.
  */
+
+/**
+ * Who is asking. The panels hand the account over on different properties,
+ * and a handler that reads only one of them silently files nothing.
+ */
+const actorOf = (req) => req.employee || req.leader || req.sales;
+
+const prettyRole = (role = "") =>
+  String(role).replace(/_/g, " ").replace(/w/g, (c) => c.toUpperCase());
+
+/**
+ * Everyone who should be told that this request exists.
+ *
+ * HR always, because HR is who decides leave. The administrators as well when
+ * the person asking runs part of the company rather than working inside it —
+ * an operations manager or a sales manager being away is a thing the business
+ * plans around, not only a row in a register, and HR approving their own
+ * department head's absence without the administrators ever hearing about it
+ * is how a week goes missing from everybody's schedule.
+ *
+ * A plain employee's leave stays with HR, deliberately. Copying every one of
+ * those to the administrators would bury the ones that actually need them.
+ *
+ * Falls back to the administrators when there is no HR account at all, so a
+ * request is never filed into an empty room.
+ */
+const ESCALATES_TO_ADMIN = [
+  "operations_manager",
+  "manager",
+  "sales",
+  "sales_exec",
+  "operations",
+];
+
+const deciderIds = async (person) => {
+  const [hrTeam, admins] = await Promise.all([
+    User.find({ role: { $in: HR_PANEL_ROLES }, status: "active" }).distinct("_id"),
+    administratorIds(),
+  ]);
+
+  const escalates = ESCALATES_TO_ADMIN.includes(person.role);
+  const ids = escalates || !hrTeam.length ? [...hrTeam, ...admins] : hrTeam;
+
+  return {
+    ids: [...new Set(ids.map(String))],
+    escalates: escalates || !hrTeam.length,
+  };
+};
 
 /** What the employee's own list and detail responses look like. */
 const shape = (leave) => ({
@@ -45,7 +99,8 @@ const shape = (leave) => ({
  */
 export const myLeaves = async (req, res) => {
   try {
-    const query = { employee: req.employee._id };
+    const me = actorOf(req);
+    const query = { employee: me._id };
 
     const status = String(req.query.status || "").trim();
     if (status && status !== "all") query.status = status;
@@ -62,7 +117,7 @@ export const myLeaves = async (req, res) => {
      * Counted over every request this person has ever filed, not the filtered
      * list, so the tally does not change meaning when a filter is applied.
      */
-    const all = await Leave.find({ employee: req.employee._id }).select("status days");
+    const all = await Leave.find({ employee: me._id }).select("status days");
     const counts = { pending: 0, approved: 0, rejected: 0, cancelled: 0 };
     let daysApproved = 0;
 
@@ -116,6 +171,7 @@ export const myLeavePolicies = async (req, res) => {
  */
 export const applyForLeave = async (req, res) => {
   try {
+    const me = actorOf(req);
     const type = String(req.body.type || "casual").trim();
     if (!LEAVE_TYPES.includes(type)) {
       return res.status(400).json({ message: "Choose a valid kind of leave" });
@@ -143,7 +199,7 @@ export const applyForLeave = async (req, res) => {
      * halves have been approved.
      */
     const clash = await Leave.findOne({
-      employee: req.employee._id,
+      employee: me._id,
       status: { $in: ["pending", "approved"] },
       fromDate: { $lte: to },
       toDate: { $gte: from },
@@ -159,46 +215,40 @@ export const applyForLeave = async (req, res) => {
     }
 
     const leave = await Leave.create({
-      employee: req.employee._id,
+      employee: me._id,
       type,
       fromDate: from,
       toDate: to,
       reason,
       // Never from the body. A request from this panel is a request.
       status: "pending",
-      appliedBy: req.employee._id,
+      appliedBy: me._id,
     });
 
     logActivity(req, {
       action: "created",
       entity: "Leave",
       entityId: leave._id,
-      message: `${req.employee.name} applied for ${leave.days} day${
+      message: `${me.name} applied for ${leave.days} day${
         leave.days === 1 ? "" : "s"
       } of ${type.replace(/_/g, " ")} leave`,
     });
 
-    /**
-     * The request has to land somewhere a person will see it. HR decides these,
-     * so every active HR account is told — the head and the managers alike,
-     * because whoever is at their desk should be able to pick it up.
-     */
-    const hrTeam = await User.find({
-      role: { $in: HR_PANEL_ROLES },
-      status: "active",
-    }).distinct("_id");
+    const audience = await deciderIds(me);
 
-    notifyUsers(hrTeam, {
+    notifyUsers(audience.ids, {
       type: "general",
       title: "New leave request",
-      message: `${req.employee.name} asked for ${leave.days} day${
-        leave.days === 1 ? "" : "s"
-      } from ${from.toLocaleDateString("en-IN")} — ${reason}`,
+      message: `${me.name}${audience.escalates ? ` (${prettyRole(me.role)})` : ""} asked for ${
+        leave.days
+      } day${leave.days === 1 ? "" : "s"} from ${from.toLocaleDateString("en-IN")} — ${reason}`,
       link: "/hr/leave",
     });
 
     return res.status(201).json({
-      message: "Your leave request has been sent to HR",
+      message: audience.escalates
+        ? "Your leave request has been sent to HR and the administrators"
+        : "Your leave request has been sent to HR",
       item: shape(leave),
     });
   } catch (err) {
@@ -217,7 +267,7 @@ export const myLeaveDetail = async (req, res) => {
   try {
     const leave = await Leave.findOne({
       _id: req.params.id,
-      employee: req.employee._id,
+      employee: actorOf(req)._id,
     });
     if (!leave) return res.status(404).json({ message: "That request was not found" });
 
@@ -244,9 +294,10 @@ export const myLeaveDetail = async (req, res) => {
  */
 export const withdrawLeave = async (req, res) => {
   try {
+    const me = actorOf(req);
     const leave = await Leave.findOne({
       _id: req.params.id,
-      employee: req.employee._id,
+      employee: me._id,
     });
     if (!leave) return res.status(404).json({ message: "That request was not found" });
 
@@ -260,27 +311,25 @@ export const withdrawLeave = async (req, res) => {
     }
 
     leave.status = "cancelled";
-    leave.decisionNote = "Withdrawn by the employee";
-    leave.decidedByName = req.employee.name;
-    leave.decidedBy = req.employee._id;
+    leave.decisionNote = "Withdrawn by the person who asked for it";
+    leave.decidedByName = me.name;
+    leave.decidedBy = me._id;
     await leave.save();
 
     logActivity(req, {
       action: "updated",
       entity: "Leave",
       entityId: leave._id,
-      message: `${req.employee.name} withdrew their leave request`,
+      message: `${me.name} withdrew their leave request`,
     });
 
-    const hrTeam = await User.find({
-      role: { $in: HR_PANEL_ROLES },
-      status: "active",
-    }).distinct("_id");
+    // The same people who were told it existed are told it is gone
+    const audience = await deciderIds(me);
 
-    notifyUsers(hrTeam, {
+    notifyUsers(audience.ids, {
       type: "general",
       title: "Leave request withdrawn",
-      message: `${req.employee.name} withdrew their request for ${new Date(
+      message: `${me.name} withdrew their request for ${new Date(
         leave.fromDate
       ).toLocaleDateString("en-IN")}`,
       link: "/hr/leave",

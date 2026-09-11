@@ -30,7 +30,7 @@ import {
   updateProjectMembers,
   shareCodeProjectWithTeam,
 } from "../controllers/leader/assignController.js";
-import { listTeam, teamPerformance } from "../controllers/leader/teamController.js";
+import { listTeam, teamPerformance, getTeamMember } from "../controllers/leader/teamController.js";
 import {
   addMembers,
   availableMembers,
@@ -42,6 +42,8 @@ import {
   createTask,
   updateTask,
   removeTask,
+  attachToTask,
+  removeTaskAttachment,
   getReviewQueue,
   reviewTask,
   countNewTasks,
@@ -138,7 +140,13 @@ import {
   updateChangeRequest,
 } from "../controllers/changeRequestController.js";
 import { bonusByProject, listBonuses } from "../controllers/bonusController.js";
-import { myLeavePolicies } from "../controllers/employee/leaveController.js";
+import {
+  myLeavePolicies,
+  myLeaves,
+  applyForLeave,
+  myLeaveDetail,
+  withdrawLeave,
+} from "../controllers/employee/leaveController.js";
 
 const router = express.Router();
 
@@ -210,6 +218,15 @@ router.put("/tasks/seen", markTasksSeen);
 router.get("/tasks/:id", getTask);
 router.put("/tasks/:id", updateTask);
 
+/**
+ * The archive that travels with a brief — a half-finished build to carry on
+ * from, the assets to work against. Same uploader and same 50 MB ceiling as
+ * every other ZIP in the app; the employee pulls it back through the ordinary
+ * file download, which already decides who may.
+ */
+router.post("/tasks/:id/attachment", uploadZip, attachToTask);
+router.delete("/tasks/:id/attachment/:fileId", removeTaskAttachment);
+
 /* ------------------------------------------------------ leave policies */
 
 /**
@@ -224,6 +241,26 @@ router.put("/tasks/:id", updateTask);
  * PUT or DELETE mounted on this router.
  */
 router.get("/leave-policies", myLeavePolicies);
+
+/* -------------------------------------------------------------- my leave */
+
+/**
+ * A manager asking for their own time off.
+ *
+ * The same handlers the employee panel uses, scoped to whoever is signed in.
+ * An operations manager could see the leave rules above and had no way to use
+ * them — the one group in the company that could approve leave but not ask
+ * for any.
+ *
+ * Deciding stays where it was: HR and the administrators, on
+ * PUT /api/hr/leaves/:id/decide. Nothing here approves anything, least of all
+ * its own request.
+ */
+router.get("/leaves", myLeaves);
+router.post("/leaves", applyForLeave);
+// Above "/leaves/:id", or "withdraw" is read as a request id
+router.put("/leaves/:id/withdraw", withdrawLeave);
+router.get("/leaves/:id", myLeaveDetail);
 
 /* ------------------------------------------------------------- bonuses */
 
@@ -434,6 +471,15 @@ router.post("/ads/campaigns/:campaignId/days", staffRecordDay);
 
 /** The teams this account is on, and the targets it carries this month. */
 router.get("/team/mine", myTeam);
+
+/**
+ * One person on this manager's team, in full.
+ *
+ * Last of the "/team" routes on purpose: "/team/:id" matches anything, so
+ * every named sub-path — performance, available, mine — has to be declared
+ * before it or it gets read as somebody's id.
+ */
+router.get("/team/:id", getTeamMember);
 
 /* ------------------------------------------------------- the reporting chain */
 

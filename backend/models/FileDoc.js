@@ -21,6 +21,15 @@ const fileDocSchema = new mongoose.Schema(
     size: { type: Number, default: 0 },
     client: { type: mongoose.Schema.Types.ObjectId, ref: "Client" },
     project: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
+    /**
+     * The one task this file was handed over for, when it was attached to a
+     * brief rather than filed against the project at large.
+     *
+     * Optional, like every other link here: a contract filed under a client
+     * belongs to no task, and every file that existed before briefs could
+     * carry an archive belongs to none either.
+     */
+    task: { type: mongoose.Schema.Types.ObjectId, ref: "Task" },
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
     /* ------------------------------------------------- uploaded file only */
@@ -50,6 +59,7 @@ const fileDocSchema = new mongoose.Schema(
 );
 
 fileDocSchema.index({ assignedTo: 1, status: 1, createdAt: -1 });
+fileDocSchema.index({ task: 1, createdAt: -1 });
 
 const FileDoc = mongoose.model("FileDoc", fileDocSchema);
 
